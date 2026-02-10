@@ -8,10 +8,99 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email         String   @unique
-  passwordhash  String
-  emailverified Boolean  @default(false)
-  createdat     DateTime @default(now()) @db.Timestamp(6)
-  updatedat     DateTime @default(now()) @db.Timestamp(6)
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email          String   @unique
+  passwordHash   String
+  emailVerified  Boolean  @default(false)
+
+  mfaEnabled     Boolean  @default(false)
+
+  createdAt      DateTime @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @db.Timestamp(6)
+
+  sessions            Session[]
+  emailVerifications  EmailVerification[]
+  passwordResets      PasswordReset[]
+  oauthAccounts       OAuthAccount[]
+  mfaSecrets          MFASecret?
 }
+
+
+model Session {
+    id               String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
+  userId           String   @db.Uuid
+  refreshTokenHash String
+
+  userAgent        String?
+  ipAddress        String?
+
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  createdAt        DateTime @default(now()) @db.Timestamp(6)
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+
+
+model EmailVerification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+
+model PasswordReset {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+
+model OAuthAccount {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @db.Uuid
+
+  provider         String
+  providerUserId   String
+
+  createdAt        DateTime @default(now()) @db.Timestamp(6)
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+
+model MFASecret {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @unique @db.Uuid
+
+  secret     String
+  backupCodes Json?
+
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
