@@ -1,5 +1,6 @@
 import { AppError } from "../lib/AppError";
 import type { Request, Response, NextFunction } from "express";
+import { INTERNAL_SERVER_ERROR } from "../lib/http";
 
 export const errorMiddleware = (
   err: unknown,
@@ -17,7 +18,7 @@ export const errorMiddleware = (
     });
   }
 
-  return res.status(500).json({
+  return res.status(INTERNAL_SERVER_ERROR).json({
     success: false,
     message: "Internal Server Error",
   });
