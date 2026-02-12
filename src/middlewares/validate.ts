@@ -1,16 +1,25 @@
-import { Request, Response, NextFunction } from "express";
-import { ZodSchema } from "zod";
+import type { Request, Response, NextFunction } from "express";
+import type { ZodSchema } from "zod";
+import { ZodError } from "zod";
 
 export const validate =
-  (schema: ZodSchema<any>) =>
-  (req: Request, res: Response, next: NextFunction) => {
+  (schema: ZodSchema) =>
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = schema.parse(req.body);
-      req.body = parsed;
+      // parseAsync is still preferred for future-proofing
+      const validatedData = await schema.parseAsync(req.body);
+
+      req.body = validatedData;
       next();
-    } catch (error: any) {
-      return res.status(400).json({
-        error: error.errors?.[0]?.message || "Invalid input",
-      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation failed",
+          errors: error.flatten().fieldErrors,
+        });
+      }
+
+      // Sends unexpected errors to Express's global error handler
+      next(error);
     }
   };
