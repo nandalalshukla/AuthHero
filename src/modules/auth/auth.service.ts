@@ -3,6 +3,9 @@ import { hashPassword, verifyPassword } from "../../lib/hash";
 import { AppError } from "../../lib/AppError";
 import { CONFLICT, UNAUTHORIZED } from "../../lib/http";
 
+
+
+
 export const registerUser = async (email: string, password: string) => {
   const existingUser = await prisma.user.findUnique({
     where: { email },
@@ -48,4 +51,4 @@ export const loginUser = async (email: string, password: string) => {
   };
 };
 
-export const 
+

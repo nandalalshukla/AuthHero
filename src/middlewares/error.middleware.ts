@@ -1,6 +1,7 @@
 import { AppError } from "../lib/AppError";
 import type { Request, Response, NextFunction } from "express";
 import { INTERNAL_SERVER_ERROR } from "../lib/http";
+import { ZodError } from "zod";
 
 export const errorMiddleware = (
   err: unknown,
@@ -16,7 +17,7 @@ export const errorMiddleware = (
       message: err.message,
       errorCode: err.errorCode,
     });
-  }
+    }
 
   return res.status(INTERNAL_SERVER_ERROR).json({
     success: false,
