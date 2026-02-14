@@ -3,11 +3,10 @@ import crypto from "crypto";
 import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../lib/hash";
 import { AppError } from "../../lib/AppError";
-import { CONFLICT, UNAUTHORIZED } from "../../lib/http";
+import { CONFLICT, UNAUTHORIZED, BAD_REQUEST } from "../../lib/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
 import { generateAccessToken } from "../../config/jwt";
-
 
 export const registerUser = async (email: string, password: string) => {
   const existingUser = await prisma.user.findUnique({
@@ -26,19 +25,19 @@ export const registerUser = async (email: string, password: string) => {
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
-        data: { email, passwordHash },
+      data: { email, passwordHash },
       select: {
         id: true,
         email: true,
-        createdAt: true,  
+        createdAt: true,
       },
-  });
-  await tx.emailVerification.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-    },
+    });
+    await tx.emailVerification.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
     });
     return user;
   });
@@ -46,17 +45,57 @@ export const registerUser = async (email: string, password: string) => {
   return {
     user: result,
     verificationToken: rawToken,
-  }
+  };
 };
 
 export const sendVerificationEmail = async (email: string, token: string) => {
   const verificationUrl = `${env.APP_URL}/verify-email?token=${token}`;
   console.log(`Verification URL: ${verificationUrl}`);
-  await sendEmail(email, "Verify Your Email", `
+  await sendEmail(
+    email,
+    "Verify Your Email",
+    `
     <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
     <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
     <p>This link will expire in 10 minutes.</p>
-  `);
+  `,
+  );
+};
+
+export const verifyEmail = async (token: string) => {
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const record = await prisma.emailVerification.findFirst({
+    where: {
+      tokenHash,
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  if (!record) {
+    throw new AppError(BAD_REQUEST, "Invalid or expired token");
+  }
+
+  if (record.expiresAt < new Date()) {
+    throw new AppError(BAD_REQUEST, "Token has expired");
+  }
+
+  if (record.usedAt) {
+    throw new AppError(BAD_REQUEST, "Token has already been used");
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { emailVerified: true },
+    }),
+    prisma.emailVerification.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+  return { message: "Email verified successfully" };
 };
 
 export const loginUser = async (email: string, password: string) => {
@@ -97,4 +136,3 @@ export const loginUser = async (email: string, password: string) => {
     refreshToken,
   };
 };
-

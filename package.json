@@ -8,6 +8,10 @@
     "@types/express": "^5.0.6",
     "prisma": "^7.3.0"
   },
+  "scripts": {
+  "dev": "bun --watch src/index.ts",
+  "worker": "bun --watch src/workers/email.worker.ts"
+},
   "peerDependencies": {
     "typescript": "^5.9.3"
   },
