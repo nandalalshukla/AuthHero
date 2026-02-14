@@ -1,20 +1,21 @@
 import nodemailer from "nodemailer";
+import {env} from "./env";
 
 // Create email transporter using Gmail SMTP
 export const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
+  host: env.EMAIL_HOST,
+  port: env.EMAIL_PORT,
   secure: true, // Use SSL
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: env.EMAIL_USER,
+    pass: env.EMAIL_PASS,
   },
   tls: {
     rejectUnauthorized: false, // Allow self-signed certificates
   },
   from: {
     name: "AuthHero",
-    address: process.env.EMAIL_USER || "authhero@gmail.com",
+    address: env.EMAIL_USER,
   },
 });
 

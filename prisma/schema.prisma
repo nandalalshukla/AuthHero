@@ -27,7 +27,7 @@ model User {
 
 
 model Session {
-    id               String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
+    id             String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
   userId           String   @db.Uuid
   refreshTokenHash String
 
