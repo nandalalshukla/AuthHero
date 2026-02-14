@@ -1,9 +1,9 @@
 import jwt from "jsonwebtoken";
 import { env } from "./env";
 
-export function generateAccessToken(userId: string, userRole: string) {
-  return jwt.sign({ userId, userRole }, env.ACCESS_TOKEN_SECRET!, {
-    expiresIn: "2m",
+export function generateAccessToken(userId: string) {
+  return jwt.sign({ userId }, env.ACCESS_TOKEN_SECRET!, {
+    expiresIn: "20m",
   });
 }
 
@@ -19,7 +19,7 @@ export function generateEmailVerifyToken(userId: string) {
 }
 
 export function generateForgetPswdToken(userId: string) {
-  return jwt.sign({ userId }, env.FORGET_PSWD_TOKEN_SECRET!, {
+  return jwt.sign({ userId }, env.FORGOT_PSWD_TOKEN_SECRET!, {
     expiresIn: "30m",
   });
 }

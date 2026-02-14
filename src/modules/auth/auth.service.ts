@@ -1,12 +1,12 @@
 import { prisma } from "../../lib/prisma";
 import crypto from "crypto";
-import { addMinutes } from "date-fns";
+import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../lib/hash";
 import { AppError } from "../../lib/AppError";
 import { CONFLICT, UNAUTHORIZED } from "../../lib/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
-
+import { generateAccessToken } from "../../config/jwt";
 
 
 export const registerUser = async (email: string, password: string) => {
@@ -49,7 +49,7 @@ export const registerUser = async (email: string, password: string) => {
   }
 };
 
-export const verifyEmail = async (email: string, token: string) => {
+export const sendVerificationEmail = async (email: string, token: string) => {
   const verificationUrl = `${env.APP_URL}/verify-email?token=${token}`;
   console.log(`Verification URL: ${verificationUrl}`);
   await sendEmail(email, "Verify Your Email", `
@@ -60,23 +60,41 @@ export const verifyEmail = async (email: string, token: string) => {
 };
 
 export const loginUser = async (email: string, password: string) => {
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
 
-  const isValid = await verifyPassword(user.passwordHash, password);
+  const isValid = await verifyPassword(password, user.passwordHash);
 
   if (!isValid) {
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
 
+  if (!user.emailVerified) {
+    throw new AppError(UNAUTHORIZED, "Please verify your email first");
+  }
+
+  const refreshToken = crypto.randomBytes(40).toString("hex");
+  const refreshTokenHash = crypto
+    .createHash("sha256")
+    .update(refreshToken)
+    .digest("hex");
+
+  const accessToken = generateAccessToken(user.id);
+
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash,
+      expiresAt: addDays(new Date(), 30),
+    },
+  });
+
   return {
-    id: user.id,
-    email: user.email,
-    createdAt: user.createdAt,
+    accessToken,
+    refreshToken,
   };
 };
+
