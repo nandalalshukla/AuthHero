@@ -17,7 +17,7 @@ export const errorMiddleware = (
       message: err.message,
       errorCode: err.errorCode,
     });
-    }
+  }
 
   return res.status(INTERNAL_SERVER_ERROR).json({
     success: false,

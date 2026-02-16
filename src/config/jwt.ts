@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 import { env } from "./env";
 
-export function generateAccessToken(userId: string) {
-  return jwt.sign({ userId }, env.ACCESS_TOKEN_SECRET!, {
+export function generateAccessToken(userId: string, sessionId: string) {
+  return jwt.sign({ userId, sessionId }, env.ACCESS_TOKEN_SECRET!, {
     expiresIn: "20m",
   });
 }

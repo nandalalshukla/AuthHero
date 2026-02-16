@@ -98,7 +98,12 @@ export const verifyEmail = async (token: string) => {
   return { message: "Email verified successfully" };
 };
 
-export const loginUser = async (email: string, password: string) => {
+export const loginUser = async (
+  email: string,
+  password: string,
+  userAgent?: string,
+  ipAddress?: string,
+) => {
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
@@ -121,18 +126,21 @@ export const loginUser = async (email: string, password: string) => {
     .update(refreshToken)
     .digest("hex");
 
-  const accessToken = generateAccessToken(user.id);
-
-  await prisma.session.create({
+  const refreshTokenExpiresAt = addDays(new Date(), 30);
+  const session = await prisma.session.create({
     data: {
       userId: user.id,
       refreshTokenHash,
-      expiresAt: addDays(new Date(), 30),
+      expiresAt: refreshTokenExpiresAt,
+      userAgent,
+      ipAddress,
     },
   });
+  const accessToken = generateAccessToken(user.id, session.id);
 
   return {
     accessToken,
     refreshToken,
   };
 };
+
