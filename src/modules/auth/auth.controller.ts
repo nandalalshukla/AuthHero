@@ -31,7 +31,6 @@ export const verifyEmailController = async (req: Request, res: Response) => {
   });
 };
 
-
 export const loginController = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const user = await loginUser(email, password);

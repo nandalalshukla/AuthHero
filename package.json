@@ -9,9 +9,9 @@
     "prisma": "^7.3.0"
   },
   "scripts": {
-  "dev": "bun --watch src/index.ts",
-  "worker": "bun --watch src/workers/email.worker.ts"
-},
+    "dev": "bun --watch src/index.ts",
+    "worker": "bun --watch src/workers/email.worker.ts"
+  },
   "peerDependencies": {
     "typescript": "^5.9.3"
   },
@@ -29,10 +29,12 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "ioredis": "^5.9.3",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.1",
     "pg": "^8.18.0",
+    "rate-limit-redis": "^4.3.1",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
   }

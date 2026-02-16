@@ -3,12 +3,14 @@ import crypto from "crypto";
 import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../lib/hash";
 import { AppError } from "../../lib/AppError";
-import { CONFLICT, UNAUTHORIZED, BAD_REQUEST } from "../../lib/http";
+import { CONFLICT, UNAUTHORIZED, BAD_REQUEST, FORBIDDEN } from "../../lib/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
 import { generateAccessToken } from "../../config/jwt";
+import type { loginResponse, registerResponse } from "./auth.types";
+import { getDefaultAutoSelectFamilyAttemptTimeout } from "net";
 
-export const registerUser = async (email: string, password: string) => {
+export const registerUser = async (email: string, password: string): Promise<registerResponse> => {
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
@@ -30,6 +32,8 @@ export const registerUser = async (email: string, password: string) => {
         id: true,
         email: true,
         createdAt: true,
+        emailVerified: true,
+        mfaEnabled: true,
       },
     });
     await tx.emailVerification.create({
@@ -103,21 +107,31 @@ export const loginUser = async (
   password: string,
   userAgent?: string,
   ipAddress?: string,
-) => {
-  const user = await prisma.user.findUnique({ where: { email } });
+): Promise<loginResponse> => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      passwordHash: true,
+      emailVerified: true,
+    },
+  });
+
+
+  const dummyHash = "$2b$10$CjwKCAjw8ZCkBhBPEiwA7iYz0pQYqXlTjHqgN1t9iJHqkH6GQ5K"; // Hash for "password123"
+  const hashToCompare = user?.passwordHash || dummyHash;
+  //comparing the password with the dummyHash if user is not found to prevent timing attacks that can reveal if a user exists or not based on response time something valuable that i learned by browsing various repos and articles about security best practices in authentication systems nice real world practice.
+  const isValid = await verifyPassword(password, hashToCompare);
 
   if (!user) {
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
-
-  const isValid = await verifyPassword(password, user.passwordHash);
-
   if (!isValid) {
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
 
   if (!user.emailVerified) {
-    throw new AppError(UNAUTHORIZED, "Please verify your email first");
+    throw new AppError(FORBIDDEN, "Please verify your email first");
   }
 
   const refreshToken = crypto.randomBytes(40).toString("hex");
@@ -137,7 +151,6 @@ export const loginUser = async (
     },
   });
   const accessToken = generateAccessToken(user.id, session.id);
-
   return {
     accessToken,
     refreshToken,

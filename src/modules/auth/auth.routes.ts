@@ -3,10 +3,11 @@ import {registerController, loginController, verifyEmailController} from "./auth
 import { asyncHandler } from "./asyncHandler";
 import { validate } from "../../middlewares/validate.middleware";
 import { registerSchema, loginSchema } from "./auth.validation";
+import { loginRateLimiter } from "../../middlewares/rateLimiter.middleware";
 const router = Router();
-
 router.post("/register", validate(registerSchema), asyncHandler(registerController));
-router.post("/login", validate(loginSchema), asyncHandler(loginController));
+router.post("/login",loginRateLimiter, validate(loginSchema), asyncHandler(loginController));
 router.post("/verify-email", asyncHandler(verifyEmailController));
+
 
 export default router;

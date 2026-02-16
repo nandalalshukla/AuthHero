@@ -51,13 +51,12 @@ model EmailVerification {
   userId    String   @db.Uuid
   tokenHash String
   expiresAt DateTime
-  usedAt    DateTime?
-
+  usedAt    DateTime? 
   createdAt DateTime @default(now()) @db.Timestamp(6)
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId,tokenHash])
 }
 
 
@@ -72,7 +71,7 @@ model PasswordReset {
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId,tokenHash])
 }
 
 

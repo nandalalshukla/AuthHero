@@ -1,20 +1,24 @@
-// What we expose publicly about a user
-export interface PublicUser {
+//What data about user we want to expose
+export interface User {
   id: string;
   email: string;
   emailVerified: boolean;
   mfaEnabled: boolean;
 }
 
-// What access token contains
+//What access token can contain
 export interface AccessTokenPayload {
   userId: string;
   sessionId: string;
 }
 
-// What login/register returns
-export interface AuthResponse {
-  user: PublicUser;
+export interface registerResponse {
+  user: User;
+  verificationToken: string;
+}
+
+//What login response should contain
+export interface loginResponse {
   accessToken: string;
   refreshToken: string;
 }

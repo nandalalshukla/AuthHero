@@ -9,7 +9,4 @@ app.use(errorMiddleware);
 app.use("/auth", authRoutes);
 
 
-
-
-
 export default app;
