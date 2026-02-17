@@ -1,19 +1,15 @@
-import { RedisStore, type RedisReply } from "rate-limit-redis";
-import { redisClient } from "../config/redis";
-import { rateLimit } from "express-rate-limit";
+import { createRateLimiter } from "../utils/rateLimiter";
 
-export const loginRateLimiter = rateLimit({
-  store: new RedisStore({
-    sendCommand: (command: string[]) => redisClient.sendCommand(command as any),
-  }),
-
+export const loginRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: 5,
+  message: "Too many login attempts. Please try again in 1 minute.",
+  keyPrefix: "login_rl",
+});
 
-  standardHeaders: true,
-  legacyHeaders: false,
-
-  message: {
-    error: "Too many login attempts. Please try again later.",
-  },
+export const registerRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  message: "Too many registration attempts.",
+  keyPrefix: "register_rl",
 });
