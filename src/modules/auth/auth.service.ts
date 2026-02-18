@@ -74,6 +74,51 @@ export const sendVerificationEmail = async (email: string, token: string) => {
   );
 };
 
+export const resendVerificationEmail = async (
+  userId: string,
+  email: string,
+) => {
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { emailVerified: true },
+  });
+
+  if (!user || user.emailVerified) {
+    return; // silently exit
+  }
+
+  await prisma.emailVerification.deleteMany({
+    where: { userId },
+  });
+
+  const rawToken = generateRandomToken(36);
+  const tokenHash = hashRandomToken(rawToken);
+  const expiresAt = addMinutes(new Date(), 15);
+
+
+  await prisma.emailVerification.create({
+    data: {
+      userId,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+
+  const verificationUrl = `${env.APP_URL}/verify-email?token=${rawToken}`;
+
+await sendEmail(
+  email,
+  "Verify Your Email",
+  `
+    <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
+    <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
+    <p>This link will expire in 10 minutes.</p>
+  `,
+);
+};
+
 export const verifyEmail = async (token: string) => {
   const tokenHash = hashRandomToken(token);
   const record = await prisma.emailVerification.findFirst({
@@ -138,9 +183,14 @@ export const loginUser = async (
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
 
-  if (!user.emailVerified) {
-    throw new AppError(FORBIDDEN, "Please verify your email first");
-  }
+ if (!user.emailVerified) {
+   await resendVerificationEmail(user.id, email);
+
+   throw new AppError(
+     FORBIDDEN,
+     "Email not verified. A new verification link has been sent.",
+   );
+ }
 
   const refreshToken = generateRandomToken(40);
   const refreshTokenHash = hashRandomToken(refreshToken);
