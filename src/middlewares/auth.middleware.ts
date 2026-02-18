@@ -3,13 +3,12 @@ import { prisma } from "../config/prisma";
 import { verifyAccessToken } from "../config/jwt";
 import { AppError } from "../lib/AppError";
 import { UNAUTHORIZED } from "../config/http";
+import type { AccessTokenPayload } from "../modules/auth/auth.types";
 
 interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    sessionId: string;
-  };
+  user?: AccessTokenPayload;
 }
+
 
 export const authenticate = async (
   req: AuthenticatedRequest,
@@ -31,12 +30,9 @@ export const authenticate = async (
 
     const payload = verifyAccessToken(token);
 
-    const { sub: userId, sessionId } = payload as {
-      sub: string;
-      sessionId: string;
-    };
+    const { userId, sessionId } = payload as AccessTokenPayload;
 
-    // Check session in DB
+    //Check session in DB
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
     });
@@ -54,7 +50,7 @@ export const authenticate = async (
     }
 
     req.user = {
-      id: userId,
+        userId,
       sessionId,
     };
 

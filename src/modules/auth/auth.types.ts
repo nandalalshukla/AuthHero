@@ -1,5 +1,12 @@
 //What data about user we want to expose
-export interface User {
+import "express";
+
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: AccessTokenPayload;
+  }
+}
+export interface PublicUser {
   id: string;
   email: string;
   emailVerified: boolean;
@@ -13,7 +20,7 @@ export interface AccessTokenPayload {
 }
 
 export interface registerResponse {
-  user: User;
+  user: PublicUser;
   verificationToken: string;
 }
 
