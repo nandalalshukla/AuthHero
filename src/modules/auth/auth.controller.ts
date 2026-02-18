@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
-import { registerUser, loginUser, verifyEmail } from "./auth.service";
-import { CREATED, OK, BAD_REQUEST } from "../../config/http";
+import {
+  registerUser,
+  loginUser,
+  verifyEmail,
+  refreshSession,
+} from "./auth.service";
+import { CREATED, OK, BAD_REQUEST, UNAUTHORIZED } from "../../config/http";
 import { emailQueue } from "../../lib/queues/email.queue";
+import { refreshTokenCookieOptions } from "../../config/cookies";
 
 export const registerController = async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -32,7 +38,43 @@ export const verifyEmailController = async (req: Request, res: Response) => {
 };
 
 export const loginController = async (req: Request, res: Response) => {
+  const ipAddress = req.ip;
+  const userAgent = req.headers["user-agent"] || "unknown";
   const { email, password } = req.body;
-  const user = await loginUser(email, password);
-  res.status(OK).json({ success: true, data: user });
+  const { accessToken, refreshToken } = await loginUser(
+    email,
+    password,
+    userAgent,
+    ipAddress,
+  );
+
+  // Set refresh token in secure httpOnly cookie
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/auth/refresh",
+  });
+
+  return res.status(OK).json({
+    accessToken,
+  });
+};
+
+export const refreshController = async (req: Request, res: Response) => {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    return res.status(UNAUTHORIZED).json({ message: "Unauthorized" });
+  }
+
+  const { accessToken, refreshToken: newRefreshToken } = await refreshSession(
+    refreshToken,
+    req.headers["user-agent"],
+    req.ip,
+  );
+
+  res.cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions);
+
+  return res.status(OK).json({ accessToken });
 };

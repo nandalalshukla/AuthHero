@@ -11,9 +11,16 @@ import {
 } from "../../config/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
-import { generateAccessToken, generateRandomToken, hashRandomToken } from "../../config/jwt";
-import type { loginResponse, registerResponse , refreshResponse} from "./auth.types";
-
+import {
+  generateAccessToken,
+  generateRandomToken,
+  hashRandomToken,
+} from "../../config/jwt";
+import type {
+  loginResponse,
+  registerResponse,
+  refreshResponse,
+} from "./auth.types";
 
 export const registerUser = async (
   email: string,
@@ -78,7 +85,6 @@ export const resendVerificationEmail = async (
   userId: string,
   email: string,
 ) => {
-
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { emailVerified: true },
@@ -96,7 +102,6 @@ export const resendVerificationEmail = async (
   const tokenHash = hashRandomToken(rawToken);
   const expiresAt = addMinutes(new Date(), 15);
 
-
   await prisma.emailVerification.create({
     data: {
       userId,
@@ -105,18 +110,17 @@ export const resendVerificationEmail = async (
     },
   });
 
-
   const verificationUrl = `${env.APP_URL}/verify-email?token=${rawToken}`;
 
-await sendEmail(
-  email,
-  "Verify Your Email",
-  `
+  await sendEmail(
+    email,
+    "Verify Your Email",
+    `
     <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
     <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
     <p>This link will expire in 10 minutes.</p>
   `,
-);
+  );
 };
 
 export const verifyEmail = async (token: string) => {
@@ -183,14 +187,13 @@ export const loginUser = async (
     throw new AppError(UNAUTHORIZED, "Invalid credentials");
   }
 
- if (!user.emailVerified) {
-   await resendVerificationEmail(user.id, email);
-
-   throw new AppError(
-     FORBIDDEN,
-     "Email not verified. A new verification link has been sent.",
-   );
- }
+  if (!user.emailVerified) {
+    await resendVerificationEmail(user.id, email);
+    throw new AppError(
+      FORBIDDEN,
+      "Email not verified. A new verification link has been sent.",
+    );
+  }
 
   const refreshToken = generateRandomToken(40);
   const refreshTokenHash = hashRandomToken(refreshToken);
@@ -217,33 +220,34 @@ export const refreshSession = async (
   userAgent?: string,
   ipAddress?: string,
 ): Promise<refreshResponse> => {
-
   const refreshTokenHash = hashRandomToken(refreshToken);
-
 
   const session = await prisma.session.findUnique({
     where: { refreshTokenHash },
   });
 
+  // 1️⃣ Invalid token
   if (!session) {
     throw new AppError(UNAUTHORIZED, "Invalid refresh token");
   }
 
-  if (session.expiresAt < new Date()) {
-    throw new AppError(UNAUTHORIZED, "Refresh token expired");
-  }
+  const now = new Date();
 
-
+  // 2️⃣ Reuse detection (revoked token used again)
   if (session.revokedAt) {
+    // Revoke all active sessions for user
     await prisma.session.updateMany({
       where: {
         userId: session.userId,
         revokedAt: null,
       },
       data: {
-        revokedAt: new Date(),
+        revokedAt: now,
       },
     });
+
+    // (Optional) Log security event
+    console.warn(`Refresh token reuse detected for user ${session.userId}`);
 
     throw new AppError(
       UNAUTHORIZED,
@@ -251,48 +255,147 @@ export const refreshSession = async (
     );
   }
 
+  // 3️⃣ Expiry check
+  if (session.expiresAt < now) {
+    await prisma.session.update({
+      where: { id: session.id },
+      data: { revokedAt: now },
+    });
+
+    throw new AppError(UNAUTHORIZED, "Refresh token expired");
+  }
+
+  // 4️⃣ Generate new refresh token
   const newRefreshToken = generateRandomToken(40);
   const newRefreshTokenHash = hashRandomToken(newRefreshToken);
 
-  const newExpiresAt = addDays(new Date(), 30);
+  const newExpiresAt = addDays(now, 30);
 
-  // 6️⃣ Rotate token inside transaction
-  const newSession = await prisma.$transaction(async (tx) => {
-    // Revoke current session
-    await tx.session.update({
+  // 5️⃣ Rotate inside transaction (atomic update)
+  const updatedSession = await prisma.$transaction(async (tx) => {
+    return tx.session.update({
       where: { id: session.id },
       data: {
-        revokedAt: new Date(),
-      },
-    });
-
-    // Create new session
-    const createdSession = await tx.session.create({
-      data: {
-        userId: session.userId,
         refreshTokenHash: newRefreshTokenHash,
         expiresAt: newExpiresAt,
+        lastRotatedAt: now,
         userAgent: userAgent ?? session.userAgent,
         ipAddress: ipAddress ?? session.ipAddress,
       },
     });
-
-    // Track lineage
-    await tx.session.update({
-      where: { id: session.id },
-      data: {
-        replacedByTokenId: createdSession.id,
-      },
-    });
-
-    return createdSession;
   });
 
-  // 7️⃣ Generate new access token
-  const accessToken = generateAccessToken(newSession.userId, newSession.id);
+  // 6️⃣ Issue new access token (same session id)
+  const accessToken = generateAccessToken(
+    updatedSession.userId,
+    updatedSession.id,
+  );
 
   return {
     accessToken,
     refreshToken: newRefreshToken,
   };
 };
+
+export const logoutUser = async (sessionId: string) => {
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session || session.revokedAt) {
+    throw new AppError(UNAUTHORIZED, "Invalid session");
+  }
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { revokedAt: new Date() },
+  });
+  return { message: "Logged out successfully" };
+};
+
+export const logoutAllSessions = async (userId: string) => {
+  await prisma.session.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  return { message: "All sessions logged out successfully" };
+};
+
+export const forgotPassword = async (email: string) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+  if (!user) {
+    return; // Silently exit to prevent email enumeration
+  }
+  const token = generateRandomToken(36);
+  const tokenHash = hashRandomToken(token);
+  const expiresAt = addMinutes(new Date(), 15);
+  await prisma.passwordReset.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  });
+  const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+  await sendEmail(
+    email,
+    "Reset Your Password",
+    `
+    <p>You requested a password reset. Click the link below to set a new password:</p>
+    <a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Reset Password</a>
+    <p>This link will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
+  `,
+  );
+};
+
+export const resetPassword = async (token: string, newPassword: string) => {
+  const tokenHash = hashRandomToken(token);
+  const record = await prisma.passwordReset.findFirst({
+    where: { tokenHash },
+    include: { user: true },
+  });
+  if (!record) {
+    throw new AppError(BAD_REQUEST, "Invalid or expired token");
+  }
+  if (record.expiresAt < new Date()) {
+    throw new AppError(BAD_REQUEST, "Token has expired");
+  }
+  const newPasswordHash = await hashPassword(newPassword);
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { passwordHash: newPasswordHash },
+    }),
+    prisma.passwordReset.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+  return { message: "Password reset successfully" };
+};
+
+
+export const changePassword = async (
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { passwordHash: true },
+  });
+  if (!user) {
+    throw new AppError(UNAUTHORIZED, "User not found");
+  }
+  const isValid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new AppError(UNAUTHORIZED, "Current password is incorrect");
+  }
+  const newPasswordHash = await hashPassword(newPassword);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newPasswordHash },
+  });
+  return { message: "Password changed successfully" };
+};
+
