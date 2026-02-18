@@ -1,13 +1,13 @@
 import { AppError } from "../lib/AppError";
 import type { Request, Response, NextFunction } from "express";
-import { INTERNAL_SERVER_ERROR } from "../lib/http";
+import { INTERNAL_SERVER_ERROR } from "../config/http";
 import { ZodError } from "zod";
 
 export const errorMiddleware = (
   err: unknown,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   console.error(err);
 
@@ -24,4 +24,3 @@ export const errorMiddleware = (
     message: "Internal Server Error",
   });
 };
-

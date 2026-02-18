@@ -1,7 +1,7 @@
 import { transporter } from "../config/email";
 import { env } from "../config/env";
 import { AppError } from "../lib/AppError";
-import { INTERNAL_SERVER_ERROR } from "../lib/http";
+import { INTERNAL_SERVER_ERROR } from "../config/http";
 
 const emailWrapper = (content: string) => `
 <!DOCTYPE html>
@@ -56,10 +56,8 @@ const emailWrapper = (content: string) => `
 </html>
 `;
 
-
 async function sendEmail(to: string, subject: string, html: string) {
   try {
-
     const mailData = {
       from: env.EMAIL_USER,
       to,

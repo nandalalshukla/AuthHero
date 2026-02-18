@@ -22,3 +22,8 @@ export interface loginResponse {
   accessToken: string;
   refreshToken: string;
 }
+
+export type refreshResponse = {
+  accessToken: string;
+  refreshToken: string;
+};

@@ -26,25 +26,38 @@ model User {
 }
 
 
+// model Session {
+//     id             String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
+//   userId           String   @db.Uuid
+//   refreshTokenHash String
+
+//   userAgent        String?
+//   ipAddress        String?
+
+//   expiresAt        DateTime
+//   revokedAt        DateTime?
+
+//   createdAt        DateTime @default(now()) @db.Timestamp(6)
+
+//   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   @@index([userId, refreshTokenHash])
+// }
+
 model Session {
     id             String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
   userId           String   @db.Uuid
-  refreshTokenHash String
-
-  userAgent        String?
-  ipAddress        String?
-
-  expiresAt        DateTime
-  revokedAt        DateTime?
-
+  refreshTokenHash   String @unique
+  expiresAt          DateTime
+  revokedAt          DateTime?
+  replacedByTokenId  String?
+  userAgent          String?
+  ipAddress          String?
   createdAt        DateTime @default(now()) @db.Timestamp(6)
+    user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  @@index([refreshTokenHash, userId])
 }
-
-
 
 model EmailVerification {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

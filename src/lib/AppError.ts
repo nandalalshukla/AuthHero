@@ -1,4 +1,4 @@
-import type { httpStatusCode } from "./http";
+import type { httpStatusCode } from "../config/http";
 
 export enum AppErrorCode {
   TokenExpired = "TOKEN_EXPIRED",
@@ -9,11 +9,11 @@ export class AppError extends Error {
   public statusCode: httpStatusCode;
   public errorCode?: AppErrorCode;
 
-    constructor(
-        statusCode: httpStatusCode,
-        message: string,
-        errorCode?: AppErrorCode
-    ) {
+  constructor(
+    statusCode: httpStatusCode,
+    message: string,
+    errorCode?: AppErrorCode,
+  ) {
     super(message);
     this.statusCode = statusCode;
     this.errorCode = errorCode;
@@ -21,4 +21,3 @@ export class AppError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
-

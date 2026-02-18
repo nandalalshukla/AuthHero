@@ -2,7 +2,7 @@ import { rateLimit, type Options } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import type { RedisReply } from "rate-limit-redis";
 import { redisClient } from "../config/redis";
-import { TOO_MANY_REQUESTS } from "../lib/http";
+import { TOO_MANY_REQUESTS } from "../config/http";
 
 type RateLimiterConfig = {
   windowMs: number;
