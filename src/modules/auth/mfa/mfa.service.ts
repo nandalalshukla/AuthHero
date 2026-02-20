@@ -1,64 +1,94 @@
 import { authenticator } from "otplib";
 import crypto from "crypto";
-import prisma from "../../../lib/prisma"; // Adjust path to your prisma client
-
-const ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY!; // 32 bytes
-const IV_LENGTH = 16;
+import { prisma } from "../../../config/prisma";
+import type { MFASetupResponse } from "./mfa.types";
 
 export class MFAService {
-  // Encrypt secret before storing in DB
-  private static encryptSecret(secret: string): string {
-    const iv = crypto.randomBytes(IV_LENGTH);
+  private static readonly ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY!; // 32 chars
+
+  /**
+   * Generates a new TOTP secret and backup codes.
+   * Does NOT enable MFA yet; user must verify first.
+   */
+  static async generateSetup(
+    userId: string,
+    email: string,
+  ): Promise<MFASetupResponse> {
+    const secret = authenticator.generateSecret();
+    const otpauth = authenticator.keyuri(email, "YourApp", secret);
+
+    // Generate 10 backup codes
+    const backupCodes = Array.from({ length: 10 }, () =>
+      crypto.randomBytes(4).toString("hex"),
+    );
+
+    // Encrypt secret and hash backup codes before storing
+    const encryptedSecret = this.encrypt(secret);
+    const hashedBackupCodes = backupCodes.map((code) =>
+      crypto.createHash("sha256").update(code).digest("hex"),
+    );
+
+    await prisma.mFASecret.upsert({
+      where: { userId },
+      update: { secret: encryptedSecret, backupCodes: hashedBackupCodes },
+      create: {
+        userId,
+        secret: encryptedSecret,
+        backupCodes: hashedBackupCodes,
+      },
+    });
+
+    return { qrCodeUrl: otpauth, secret, backupCodes };
+  }
+
+  /**
+   * Verifies the 6-digit code and permanently enables MFA for the user.
+   */
+  static async verifyAndEnable(userId: string, code: string): Promise<boolean> {
+    const mfa = await prisma.mFASecret.findUnique({ where: { userId } });
+    if (!mfa) return false;
+
+    const decryptedSecret = this.decrypt(mfa.secret);
+    const isValid = authenticator.verify({
+      token: code,
+      secret: decryptedSecret,
+    });
+
+    if (isValid) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { mfaEnabled: true },
+      });
+    }
+
+    return isValid;
+  }
+
+  // Helper: Simple AES Encryption for secrets at rest
+  private static encrypt(text: string): string {
+    const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(
       "aes-256-cbc",
-      Buffer.from(ENCRYPTION_KEY),
+      Buffer.from(this.ENCRYPTION_KEY),
       iv,
     );
-    let encrypted = cipher.update(secret);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
+    return (
+      iv.toString("hex") +
+      ":" +
+      Buffer.concat([cipher.update(text), cipher.final()]).toString("hex")
+    );
   }
 
-  private static decryptSecret(encryptedData: string): string {
-    const [ivHex, encryptedHex] = encryptedData.split(":");
-    const iv = Buffer.from(ivHex, "hex");
-    const encryptedText = Buffer.from(encryptedHex, "hex");
+  private static decrypt(hash: string): string {
+    const [iv, encrypted] = hash.split(":");
     const decipher = crypto.createDecipheriv(
       "aes-256-cbc",
-      Buffer.from(ENCRYPTION_KEY),
-      iv,
+      Buffer.from(this.ENCRYPTION_KEY),
+      Buffer.from(iv, "hex"),
     );
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
-  }
-
-  static async generateSetupData(userId: string, email: string) {
-    const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(email, "YourAppName", secret);
-
-    // Store temporarily or update pending secret
-    const encrypted = this.encryptSecret(secret);
-    await prisma.mfaSecret.upsert({
-      where: { userId },
-      update: { secret: encrypted },
-      create: { userId, secret: encrypted },
-    });
-
-    return { secret, otpauth };
-  }
-
-  static async verifyAndEnable(userId: string, token: string) {
-    const mfa = await prisma.mfaSecret.findUnique({ where: { userId } });
-    if (!mfa) throw new Error("MFA not initiated");
-
-    const isValid = authenticator.check(token, this.decryptSecret(mfa.secret));
-    if (!isValid) return false;
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: true },
-    });
-    return true;
+    return Buffer.concat([
+      decipher.update(Buffer.from(encrypted, "hex")),
+      decipher.final(),
+    ]).toString();
   }
 }
