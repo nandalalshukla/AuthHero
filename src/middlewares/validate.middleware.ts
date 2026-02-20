@@ -6,7 +6,6 @@ export const validate =
   (schema: ZodSchema) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // parseAsync is still preferred for future-proofing
       const validatedData = await schema.parseAsync(req.body);
 
       req.body = validatedData;
@@ -19,7 +18,7 @@ export const validate =
         });
       }
 
-      // Sends unexpected errors to Express's global error handler
+      //calling nxt with error to pass the err to the error middleware
       next(error);
     }
   };
