@@ -1,58 +1,75 @@
-import axios from 'axios';
-import prisma from '../../../lib/prisma';
+import { prisma } from "../../../config/prisma";
+import { GoogleProvider } from "./providers/google.provider";
+import { GitHubProvider } from "./providers/github.provider";
+import { FacebookProvider } from "./providers/facebook.provider";
+import type { OAuthProvider } from "./oauth.types";
+
 
 export class OAuthService {
-  // 1. Exchange the code from Google/GitHub for a profile
-  static async getGoogleUser(code: string) {
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code',
-    });
+  // Registry of all supported providers
+  private static providers: Record<string, OAuthProvider> = {
+    google: new GoogleProvider(),
+    github: new GitHubProvider(),
+    facebook: new FacebookProvider(),
+  };
 
-    const { access_token } = tokenResponse.data;
-    const { data: profile } = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
+  /**
+   * Main entry point for the OAuth Callback.
+   * Handles profile fetching and DB synchronization.
+   */
+  static async handleCallback(providerName: string, code: string) {
+    const strategy = this.providers[providerName];
+    if (!strategy)
+      throw new Error(`Provider ${providerName} is not supported.`);
 
-    return { id: profile.id, email: profile.email };
-  }
+    // 1. Fetch profile from the third-party API
+    const profile = await strategy.getProfile(code);
 
-  // 2. The Professional Link/Create Logic
-  static async handleUserSync(provider: string, providerId: string, email: string) {
+    // 2. Execute DB sync in a transaction for data integrity
     return await prisma.$transaction(async (tx) => {
-      // Check if this specific OAuth account is already linked
-      const existingOAuth = await tx.oAuthAccount.findUnique({
-        where: { provider_providerUserId: { provider, providerUserId: providerId } },
-        include: { user: true }
+      // Check if this specific social account is already linked
+      const existingAccount = await tx.oAuthAccount.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: profile.provider,
+            providerUserId: profile.providerUserId,
+          },
+        },
+        include: { user: true },
       });
 
-      if (existingOAuth) return existingOAuth.user;
+      if (existingAccount) return existingAccount.user;
 
-      // Check if a user with this email exists (Account Linking)
-      const existingUser = await tx.user.findUnique({ where: { email } });
+      // Check if the user exists by email (Account Linking)
+      const existingUser = await tx.user.findUnique({
+        where: { email: profile.email },
+      });
 
       if (existingUser) {
-        // PROFESSIONAL CHOICE: Link the account if they are logged in, 
-        // OR throw an error requiring them to login with password first to prove ownership.
-        return await tx.user.update({
-          where: { id: existingUser.id },
+        // Link the existing user to the new social provider
+        await tx.oAuthAccount.create({
           data: {
-            oauthAccounts: { create: { provider, providerUserId: providerId } }
-          }
+            userId: existingUser.id,
+            provider: profile.provider,
+            providerUserId: profile.providerUserId,
+          },
         });
+        return existingUser;
       }
 
-      // Create brand new user
+      // Create a brand new user for a new social login
       return await tx.user.create({
         data: {
-          email,
-          passwordHash: '', // No password for pure OAuth users
+          email: profile.email,
+          passwordHash: "", // Social-only users have no password
           emailVerified: true,
-          oauthAccounts: { create: { provider, providerUserId: providerId } }
-        }
+          oauthAccounts: {
+            create: {
+              provider: profile.provider,
+              providerUserId: profile.providerUserId,
+            },
+          },
+        },
       });
     });
   }
