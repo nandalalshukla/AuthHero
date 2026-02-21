@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { MFAController } from "./mfa.controller";
-import { authenticate } from "../../../middlewares/auth.middleware"; // Your existing auth guard
+import { initiateMFA, verifyMFA, challengeMFA } from "./mfa.controller";
+import { validate } from "../../middleware/validate";
+import { verifyMFASchema, challengeMFASchema } from "./mfa.validation";
 
 const router = Router();
 
-// These require a logged-in session to setup/activate
-router.get("/setup", authenticate, MFAController.setup);
-router.post("/activate", authenticate, MFAController.activate);
+router.post("/setup", initiateMFA);
+router.post("/verify", validate(verifyMFASchema), verifyMFA);
+router.post("/challenge", validate(challengeMFASchema), challengeMFA);
 
 export default router;

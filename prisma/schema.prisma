@@ -87,14 +87,17 @@ model OAuthAccount {
 
 
 model MFASecret {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @unique @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @unique @db.Uuid
 
-  secret     String
-  backupCodes Json?
+  secretHash   String   // encrypted TOTP secret
+  backupCodes  String[] // hashed backup codes
 
-  createdAt  DateTime @default(now()) @db.Timestamp(6)
+  verified     Boolean  @default(false) // true after first successful TOTP
+  enabledAt    DateTime?
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @db.Timestamp(6)
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

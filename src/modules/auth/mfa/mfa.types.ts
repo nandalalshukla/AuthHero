@@ -1,10 +1,13 @@
 export interface MFASetupResponse {
-  qrCodeUrl: string; // The otpauth:// URI to generate a QR code on frontend
-  secret: string; // The raw secret (only show once during setup)
-  backupCodes: string[]; // Recovery codes for when the user loses their phone
+  qrCode: string;
+  backupCodes: string[];
 }
 
-export interface VerifyMFAPayload {
-  userId: string;
-  code: string; // The 6-digit TOTP code
+export interface MFAVerifyInput {
+  token: string;
+}
+
+export interface MFAChallengeInput {
+  tempToken: string;
+  code: string;
 }

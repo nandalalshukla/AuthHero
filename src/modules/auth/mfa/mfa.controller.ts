@@ -1,30 +1,30 @@
-import type { Request, Response } from "express";
+import { Request, Response } from "express";
 import { MFAService } from "./mfa.service";
 
-export class MFAController {
-  static async setup(req: Request, res: Response) {
-    // In a real app, userId comes from the authenticated session (req.user)
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const { qrCodeUrl, backupCodes } = await MFAService.generateSetup(
-      req.user.id,
-      req.user.email,
-    );
-    return res.json({ qrCodeUrl, backupCodes });
-  }
+const service = new MFAService();
 
-  static async activate(req: Request, res: Response) {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const { code } = req.body;
-    const success = await MFAService.verifyAndEnable(req.user.id, code);
+export const initiateMFA = async (req: Request, res: Response) => {
+  const userId = req.user.id;
+  const email = req.user.email;
 
-    if (!success) {
-      return res.status(400).json({ message: "Invalid MFA code" });
-    }
+  const data = await service.initiate(userId, email);
 
-    return res.json({ message: "MFA enabled successfully" });
-  }
-}
+  res.json(data);
+};
+
+export const verifyMFA = async (req: Request, res: Response) => {
+  const userId = req.user.id;
+  const { token } = req.body;
+
+  await service.verifyAndEnable(userId, token);
+
+  res.json({ success: true });
+};
+
+export const challengeMFA = async (req: Request, res: Response) => {
+  const { userId, code } = req.body;
+
+  await service.verifyChallenge(userId, code);
+
+  res.json({ success: true });
+};
