@@ -1,52 +1,103 @@
 import type { Request, Response } from "express";
 import { OAuthService } from "./oauth.service";
 import type { SupportedProvider } from "./oauth.types";
+import { generateAccessToken, generateRandomToken, hashRandomToken } from "../../../config/jwt";
+import { prisma } from "../../../config/prisma";
+import { refreshTokenCookieOptions } from "../../../config/cookies";
+import { addDays } from "date-fns";
+import { env } from "../../../config/env";
+import crypto from "crypto";
 
 export class OAuthController {
   /**
-   * Handles the redirection back from the OAuth Provider
+   * Generates the initial redirect URL and sets a CSRF state cookie.
+   *
+   * How OAuth state works:
+   * 1. We generate a random string (state) and store it in a cookie
+   * 2. We include the same state in the redirect URL to the OAuth provider
+   * 3. When the provider calls us back, it includes the state in the query
+   * 4. We compare the cookie state with the query state — if they don't match,
+   *    someone is doing a CSRF attack (tricking the user into authenticating
+   *    with the attacker's account)
    */
-  static async handleCallback(req: Request, res: Response) {
-    try {
-      const { provider } = req.params as { provider: SupportedProvider };
-      const { code, state } = req.query;
+  static async getAuthUrl(req: Request, res: Response) {
+    const { provider } = req.params as { provider: SupportedProvider };
 
-      // 1. Security Check: Validate state to prevent CSRF
-      const savedState = req.cookies[`${provider}_auth_state`];
-      if (!state || state !== savedState) {
-        return res
-          .status(403)
-          .json({ error: "Invalid state parameter. CSRF detected." });
-      }
+    const state = crypto.randomBytes(32).toString("hex");
 
-      if (!code) {
-        return res.status(400).json({ error: "Authorization code missing." });
-      }
+    // Store state in a short-lived httpOnly cookie
+    res.cookie(`${provider}_auth_state`, state, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
 
-      // 2. Business Logic: Exchange code for User via Service
-      const user = await OAuthService.handleCallback(provider, code as string);
+    const urls: Record<SupportedProvider, string> = {
+      google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${env.GOOGLE_REDIRECT_URI}&response_type=code&scope=email+profile&state=${state}`,
+      github: `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${env.GITHUB_REDIRECT_URI}&scope=user:email&state=${state}`,
+      facebook: `https://www.facebook.com/v12.0/dialog/oauth?client_id=${env.FACEBOOK_CLIENT_ID}&redirect_uri=${env.FACEBOOK_REDIRECT_URI}&scope=email&state=${state}`,
+    };
 
-      // 3. Session Management: Clear state cookie and create session
-      res.clearCookie(`${provider}_auth_state`);
-
-      // NOTE: Here you would call your existing SessionService to create a JWT
-      // Example: const token = SessionService.generateToken(user.id);
-
-      // 4. Final Step: Redirect to Frontend
-      return res.redirect(
-        `${process.env.FRONTEND_URL}/auth-success?token=REPLACEME`,
-      );
-    } catch (error: any) {
-      console.error(`[OAuth Error]: ${error.message}`);
-      return res.status(500).json({ error: "Authentication failed" });
+    const url = urls[provider];
+    if (!url) {
+      return res.status(400).json({ success: false, message: `Unsupported provider: ${provider}` });
     }
+
+    return res.json({ success: true, data: { url } });
   }
 
   /**
-   * Helper to generate the Login URL for the frontend
+   * Handles the callback from the OAuth provider.
+   * Validates the CSRF state, exchanges the code for a user profile,
+   * then creates a session exactly like the normal login flow.
    */
-  static async getAuthUrl(req: Request, res: Response) {
-    // Implementation for generating the initial redirect URL
-    // and setting the 'state' cookie would go here.
+  static async handleCallback(req: Request, res: Response) {
+    const { provider } = req.params as { provider: SupportedProvider };
+    const { code, state } = req.query;
+
+    // 1. CSRF check: compare state from cookie with state from query
+    const savedState = req.cookies?.[`${provider}_auth_state`];
+    if (!state || state !== savedState) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid state parameter. Possible CSRF attack.",
+      });
+    }
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Authorization code missing.",
+      });
+    }
+
+    // 2. Exchange code for user profile and sync with DB
+    const user = await OAuthService.handleCallback(provider, code as string);
+
+    // 3. Create session (same logic as email/password login)
+    const refreshToken = generateRandomToken(40);
+    const refreshTokenHash = hashRandomToken(refreshToken);
+    const refreshTokenExpiresAt = addDays(new Date(), 30);
+
+    const session = await prisma.session.create({
+      data: {
+        userId: user.id,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
+        userAgent: req.headers["user-agent"],
+        ipAddress: req.ip,
+      },
+    });
+
+    const accessToken = generateAccessToken(user.id, session.id);
+
+    // 4. Set cookies and redirect
+    res.clearCookie(`${provider}_auth_state`);
+    res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
+
+    // Redirect to frontend with the access token
+    const frontendUrl = env.FRONTEND_URL || env.APP_URL;
+    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
   }
 }

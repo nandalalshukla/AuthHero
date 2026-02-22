@@ -23,7 +23,15 @@ export const createRateLimiter = ({
       sendCommand: async (...args: string[]) =>
         (await redisClient.sendCommand(args as any)) as RedisReply,
     }),
-    keyGenerator: (req) => req.body.email ?? req.ip,
+    // Use IP as the primary rate limit key.
+    // DO NOT use req.body.email as primary — attackers can rotate fake emails
+    // to bypass rate limiting. IP is the one thing they can't easily change.
+    keyGenerator: (req) => {
+      const ip = req.ip ?? "unknown";
+      const email = req.body?.email;
+      // Combine IP + email so the same IP can't brute-force different accounts
+      return email ? `${keyPrefix}:${ip}:${email}` : `${keyPrefix}:${ip}`;
+    },
 
     windowMs,
     max,

@@ -1,29 +1,21 @@
 import { Router } from "express";
 import { OAuthController } from "./oauth.controller";
-import { validate } from "../../../middlewares/validate.middleware";
-import { z } from "zod";
+import { asyncHandler } from "../../../lib/asyncHandler";
 
 const router = Router();
 
-// Schema for validating the callback
-const callbackSchema = z.object({
-  params: z.object({
-    provider: z.enum(["google", "github", "facebook"]),
-  }),
-  query: z.object({
-    code: z.string().min(1),
-    state: z.string().min(1),
-  }),
-});
+/**
+ * GET /auth/oauth/:provider
+ * Returns the OAuth authorization URL for the given provider.
+ * Frontend should redirect the user to this URL.
+ */
+router.get("/:provider", asyncHandler(OAuthController.getAuthUrl));
 
 /**
- * GET /api/auth/callback/:provider
- * This is the URI you register in Google/GitHub/Facebook consoles
+ * GET /auth/oauth/callback/:provider
+ * This is the redirect URI you register in Google/GitHub/Facebook consoles.
+ * The provider sends the user back here with a code & state.
  */
-router.get(
-  "/callback/:provider",
-  validate(callbackSchema),
-  OAuthController.handleCallback,
-);
+router.get("/callback/:provider", asyncHandler(OAuthController.handleCallback));
 
 export default router;

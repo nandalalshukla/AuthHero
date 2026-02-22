@@ -5,23 +5,20 @@ import { env } from "../../../../config/env";
 export class GitHubProvider implements OAuthProvider {
   private readonly clientId = env.GITHUB_CLIENT_ID!;
   private readonly clientSecret = env.GITHUB_CLIENT_SECRET!;
-  private readonly redirectUri = env.GITHUB_REDIRECT_URI!; // Added this
+  private readonly redirectUri = env.GITHUB_REDIRECT_URI!;
 
   async getProfile(code: string): Promise<OAuthUserProfile> {
+    // 1. Exchange auth code for access token
     const tokenResponse = await axios.post(
       "https://github.com/login/oauth/access_token",
       {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         code,
-        redirect_uri: this.redirectUri, // Now explicitly sent
+        redirect_uri: this.redirectUri,
       },
       { headers: { Accept: "application/json" } },
     );
-
-    // ... rest of your code ...
-  }
-}
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) throw new Error("Failed to obtain GitHub access token");

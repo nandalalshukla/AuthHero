@@ -22,6 +22,15 @@ import type {
   refreshResponse,
 } from "./auth.types";
 
+// Pre-compute a dummy argon2 hash at module load time.
+// This is used for timing-attack protection: when a user doesn't exist,
+// we still run argon2.verify() against this hash so the response time
+// is indistinguishable from a real user lookup.
+let dummyHash: string;
+hashPassword("authhero-timing-safe-dummy-password").then((h) => {
+  dummyHash = h;
+});
+
 export const registerUser = async (
   email: string,
   password: string,
@@ -174,10 +183,9 @@ export const loginUser = async (
     },
   });
 
-  const dummyHash =
-    "$2b$10$CjwKCAjw8ZCkBhBPEiwA7iYz0pQYqXlTjHqgN1t9iJHqkH6GQ5K"; // Hash for "password123"
   const hashToCompare = user?.passwordHash || dummyHash;
-  //comparing the password with the dummyHash if user is not found to prevent timing attacks that can reveal if a user exists or not based on response time something valuable that i learned by browsing various repos and articles about security best practices in authentication systems nice real world practice.
+  // Compare password against real hash (or dummy if user not found).
+  // This prevents timing attacks that reveal whether a user exists.
   const isValid = await verifyPassword(password, hashToCompare);
 
   if (!user) {
@@ -356,6 +364,9 @@ export const resetPassword = async (token: string, newPassword: string) => {
   });
   if (!record) {
     throw new AppError(BAD_REQUEST, "Invalid or expired token");
+  }
+  if (record.usedAt) {
+    throw new AppError(BAD_REQUEST, "Token has already been used");
   }
   if (record.expiresAt < new Date()) {
     throw new AppError(BAD_REQUEST, "Token has expired");

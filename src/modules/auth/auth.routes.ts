@@ -28,7 +28,7 @@ import {
   resetPasswordRateLimiter,
   refreshRateLimiter,
 } from "../../middlewares/rateLimiter.middleware";
-import { requireAuth } from "../../utils/requireAuth";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -73,11 +73,13 @@ router.post(
   asyncHandler(verifyEmailController),
 );
 
-router.post("/logout", requireAuth, asyncHandler(logoutController));
-router.post("/logout-all", requireAuth, asyncHandler(logoutAllController));
+router.post("/logout", authenticate, asyncHandler(logoutController));
+router.post("/logout-all", authenticate, asyncHandler(logoutAllController));
 router.post(
   "/change-password",
-  requireAuth,
+  authenticate,
   validate(changePasswordSchema),
   asyncHandler(changePasswordController),
 );
+
+export default router;

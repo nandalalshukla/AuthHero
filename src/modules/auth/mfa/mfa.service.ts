@@ -1,4 +1,4 @@
-import prisma from "../../config/prisma";
+import { prisma } from "../../../config/prisma";
 import {
   generateTOTPSecret,
   generateOTPAuthURL,
@@ -8,12 +8,21 @@ import {
   hashBackupCode,
   verifyBackupCode,
 } from "./mfa.crypto";
-import { MFANotInitializedError, MFATokenInvalidError } from "./mfa.errors";
+import { AppError } from "../../../lib/AppError";
+import { BAD_REQUEST } from "../../../config/http";
 
 export class MFAService {
-  async initiate(userId: string, email: string) {
+  async initiate(userId: string) {
+    // Fetch email from DB since it's not in the access token
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
+    if (!user) throw new AppError(BAD_REQUEST, "User not found");
+
     const secret = generateTOTPSecret();
-    const otpauth = generateOTPAuthURL(email, secret);
+    const otpauth = generateOTPAuthURL(user.email, secret);
     const qrCode = await generateQRCode(otpauth);
 
     const backupCodes = generateBackupCodes();
@@ -41,10 +50,10 @@ export class MFAService {
       where: { userId },
     });
 
-    if (!record) throw new MFANotInitializedError();
+    if (!record) throw new AppError(BAD_REQUEST, "MFA has not been set up");
 
     const valid = verifyTOTP(token, record.secretHash);
-    if (!valid) throw new MFATokenInvalidError();
+    if (!valid) throw new AppError(BAD_REQUEST, "Invalid MFA token");
 
     await prisma.mFASecret.update({
       where: { userId },
@@ -67,7 +76,7 @@ export class MFAService {
       where: { userId },
     });
 
-    if (!record || !record.verified) throw new MFANotInitializedError();
+    if (!record || !record.verified) throw new AppError(BAD_REQUEST, "MFA has not been set up");
 
     if (verifyTOTP(code, record.secretHash)) {
       return true;
@@ -87,6 +96,6 @@ export class MFAService {
       }
     }
 
-    throw new MFATokenInvalidError();
+    throw new AppError(BAD_REQUEST, "Invalid MFA code");
   }
 }
