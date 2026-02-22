@@ -1,8 +1,9 @@
 import { prisma } from "../../config/prisma";
-import crypto, { hash } from "crypto";
+import crypto from "crypto";
+import { logger } from "../../config/logger";
 import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../utils/hash";
-import { AppError } from "../../lib/AppError";
+import { AppError, AppErrorCode } from "../../lib/AppError";
 import {
   CONFLICT,
   UNAUTHORIZED,
@@ -40,7 +41,7 @@ export const registerUser = async (
   });
 
   if (existingUser) {
-    throw new AppError(CONFLICT, "User already exists");
+    throw new AppError(CONFLICT, "User already exists", AppErrorCode.EmailAlreadyExists);
   }
 
   const passwordHash = await hashPassword(password);
@@ -78,7 +79,7 @@ export const registerUser = async (
 
 export const sendVerificationEmail = async (email: string, token: string) => {
   const verificationUrl = `${env.APP_URL}/verify-email?token=${token}`;
-  console.log(`Verification URL: ${verificationUrl}`);
+  logger.debug({ email }, "Sending verification email");
   await sendEmail(
     email,
     "Verify Your Email",
@@ -189,10 +190,10 @@ export const loginUser = async (
   const isValid = await verifyPassword(password, hashToCompare);
 
   if (!user) {
-    throw new AppError(UNAUTHORIZED, "Invalid credentials");
+    throw new AppError(UNAUTHORIZED, "Invalid credentials", AppErrorCode.InvalidCredentials);
   }
   if (!isValid) {
-    throw new AppError(UNAUTHORIZED, "Invalid credentials");
+    throw new AppError(UNAUTHORIZED, "Invalid credentials", AppErrorCode.InvalidCredentials);
   }
 
   if (!user.emailVerified) {
@@ -200,6 +201,7 @@ export const loginUser = async (
     throw new AppError(
       FORBIDDEN,
       "Email not verified. A new verification link has been sent.",
+      AppErrorCode.EmailNotVerified,
     );
   }
 
@@ -254,8 +256,8 @@ export const refreshSession = async (
       },
     });
 
-    // (Optional) Log security event
-    console.warn(`Refresh token reuse detected for user ${session.userId}`);
+    // SECURITY: Log token reuse — this is a potential theft indicator
+    logger.warn({ userId: session.userId, sessionId: session.id }, "Refresh token reuse detected — all sessions revoked");
 
     throw new AppError(
       UNAUTHORIZED,

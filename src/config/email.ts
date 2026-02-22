@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import {env} from "./env";
+import { logger } from "./logger";
 
 // Create email transporter using Gmail SMTP
 export const transporter = nodemailer.createTransport({
@@ -20,10 +21,10 @@ export const transporter = nodemailer.createTransport({
 });
 
 // Verify transporter configuration on startup
-transporter.verify((error, success) => {
+transporter.verify((error, _success) => {
   if (error) {
-    console.error("❌ Email transporter configuration error:", error);
+    logger.error({ err: error }, "Email transporter configuration error");
   } else {
-    console.log("✅ Email server is ready to send messages");
+    logger.info("Email transporter is ready");
   }
 });

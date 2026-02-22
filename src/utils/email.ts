@@ -2,6 +2,7 @@ import { transporter } from "../config/email";
 import { env } from "../config/env";
 import { AppError } from "../lib/AppError";
 import { INTERNAL_SERVER_ERROR } from "../config/http";
+import { logger } from "../config/logger";
 
 const emailWrapper = (content: string) => `
 <!DOCTYPE html>
@@ -74,12 +75,10 @@ async function sendEmail(to: string, subject: string, html: string) {
         }
       });
     });
-    console.log(`✅ Email sent successfully to: ${to}`);
-    console.log(`📬 Message ID: ${(info as any).messageId}`);
+    logger.info({ to, messageId: (info as any).messageId }, "Email sent successfully");
     return info;
   } catch (error: any) {
-    console.error(`❌ Failed to send email to: ${to}`);
-    console.error(`❌ Error details:`, error.message);
+    logger.error({ to, err: error.message }, "Failed to send email");
     throw new AppError(INTERNAL_SERVER_ERROR, "Failed to send email");
   }
 }
