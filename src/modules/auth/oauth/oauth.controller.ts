@@ -1,7 +1,12 @@
 import type { Request, Response } from "express";
 import { OAuthService } from "./oauth.service";
 import type { SupportedProvider } from "./oauth.types";
-import { generateAccessToken, generateRandomToken, hashRandomToken } from "../../../config/jwt";
+import {
+  generateAccessToken,
+  generateMFATempToken,
+  generateRandomToken,
+  hashRandomToken,
+} from "../../../config/jwt";
 import { prisma } from "../../../config/prisma";
 import { refreshTokenCookieOptions } from "../../../config/cookies";
 import { addDays } from "date-fns";
@@ -41,7 +46,9 @@ export class OAuthController {
 
     const url = urls[provider];
     if (!url) {
-      return res.status(400).json({ success: false, message: `Unsupported provider: ${provider}` });
+      return res
+        .status(400)
+        .json({ success: false, message: `Unsupported provider: ${provider}` });
     }
 
     return res.json({ success: true, data: { url } });
@@ -75,7 +82,21 @@ export class OAuthController {
     // 2. Exchange code for user profile and sync with DB
     const user = await OAuthService.handleCallback(provider, code as string);
 
-    // 3. Create session (same logic as email/password login)
+    // Clear the CSRF state cookie (no longer needed)
+    res.clearCookie(`${provider}_auth_state`);
+
+    const frontendUrl = env.FRONTEND_URL || env.APP_URL;
+
+    // 3. If user has MFA enabled, issue a temp token and redirect
+    //    to the frontend MFA challenge page instead of granting a session.
+    if (user.mfaEnabled) {
+      const tempToken = generateMFATempToken(user.id);
+      return res.redirect(
+        `${frontendUrl}/auth/mfa-challenge?tempToken=${tempToken}`,
+      );
+    }
+
+    // 4. Create session (same logic as email/password login)
     const refreshToken = generateRandomToken(40);
     const refreshTokenHash = hashRandomToken(refreshToken);
     const refreshTokenExpiresAt = addDays(new Date(), 30);
@@ -92,12 +113,12 @@ export class OAuthController {
 
     const accessToken = generateAccessToken(user.id, session.id);
 
-    // 4. Set cookies and redirect
-    res.clearCookie(`${provider}_auth_state`);
+    // 5. Set cookies and redirect
     res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
 
     // Redirect to frontend with the access token
-    const frontendUrl = env.FRONTEND_URL || env.APP_URL;
-    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
+    return res.redirect(
+      `${frontendUrl}/auth/callback?accessToken=${accessToken}`,
+    );
   }
 }

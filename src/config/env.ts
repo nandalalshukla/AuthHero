@@ -47,8 +47,9 @@ const envSchema = z.object({
   FACEBOOK_CLIENT_SECRET: z.string().optional(),
   FACEBOOK_REDIRECT_URI: z.string().optional(),
 
-  // MFA encryption key (32-byte hex, for encrypting TOTP secrets at rest)
+  // MFA
   MFA_ENCRYPTION_KEY: z.string().length(64).optional(),
+  MFA_TEMP_TOKEN_SECRET: z.string().min(10),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

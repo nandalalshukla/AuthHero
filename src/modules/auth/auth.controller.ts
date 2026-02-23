@@ -47,12 +47,20 @@ export const loginController = async (req: Request, res: Response) => {
   const userAgent = req.headers["user-agent"] || "unknown";
   const { email, password } = req.body;
 
-  const { accessToken, refreshToken } = await loginUser(
-    email,
-    password,
-    userAgent,
-    ipAddress,
-  );
+  const result = await loginUser(email, password, userAgent, ipAddress);
+
+  // If MFA is enabled, return the temp token so the client
+  // can complete the challenge at POST /auth/mfa/challenge
+  if (result.mfaRequired) {
+    return res.status(OK).json({
+      success: true,
+      message: "MFA verification required",
+      data: { mfaRequired: true, tempToken: result.tempToken },
+    });
+  }
+
+  // Standard login — no MFA
+  const { accessToken, refreshToken } = result;
 
   // Set refresh token in secure httpOnly cookie — never expose it to JS
   res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
@@ -60,7 +68,7 @@ export const loginController = async (req: Request, res: Response) => {
   return res.status(OK).json({
     success: true,
     message: "Login successful",
-    data: { accessToken },
+    data: { mfaRequired: false, accessToken },
   });
 };
 

@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import {env} from "./env";
+import { env } from "./env";
 import { logger } from "./logger";
 
 // Create email transporter using Gmail SMTP

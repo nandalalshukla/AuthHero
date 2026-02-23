@@ -15,18 +15,20 @@ import { sendEmail } from "../../utils/email";
 import {
   generateAccessToken,
   generateRandomToken,
+  generateMFATempToken,
   hashRandomToken,
 } from "../../config/jwt";
 import type {
   loginResponse,
+  loginMFAResponse,
   registerResponse,
   refreshResponse,
 } from "./auth.types";
 
 // Pre-compute a dummy argon2 hash at module load time.
 // This is used for timing-attack protection: when a user doesn't exist,
-// we still run argon2.verify() against this hash so the response time
-// is indistinguishable from a real user lookup.
+//we still run argon2.verify() against this hash so the response time
+//is indistinguishable from a real user lookup.
 let dummyHash: string;
 hashPassword("authhero-timing-safe-dummy-password").then((h) => {
   dummyHash = h;
@@ -41,7 +43,11 @@ export const registerUser = async (
   });
 
   if (existingUser) {
-    throw new AppError(CONFLICT, "User already exists", AppErrorCode.EmailAlreadyExists);
+    throw new AppError(
+      CONFLICT,
+      "User already exists",
+      AppErrorCode.EmailAlreadyExists,
+    );
   }
 
   const passwordHash = await hashPassword(password);
@@ -174,26 +180,37 @@ export const loginUser = async (
   password: string,
   userAgent?: string,
   ipAddress?: string,
-): Promise<loginResponse> => {
+): Promise<loginResponse | loginMFAResponse> => {
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
       id: true,
       passwordHash: true,
       emailVerified: true,
+      mfaEnabled: true,
     },
   });
 
+  //TIMING ATTACK: By always performing a password hash verification, even when the user doesn't exist, we ensure that the response time is consistent regardless of whether the email is registered. This prevents attackers from measuring response times to determine if a user exists in the system, thus mitigating a common timing attack vector.
+
   const hashToCompare = user?.passwordHash || dummyHash;
-  // Compare password against real hash (or dummy if user not found).
-  // This prevents timing attacks that reveal whether a user exists.
+
+  // Compare password against real hash (or dummy if user not found). This ensures consistent timing whether or not the user exists.
   const isValid = await verifyPassword(password, hashToCompare);
 
   if (!user) {
-    throw new AppError(UNAUTHORIZED, "Invalid credentials", AppErrorCode.InvalidCredentials);
+    throw new AppError(
+      UNAUTHORIZED,
+      "Invalid credentials",
+      AppErrorCode.InvalidCredentials,
+    );
   }
   if (!isValid) {
-    throw new AppError(UNAUTHORIZED, "Invalid credentials", AppErrorCode.InvalidCredentials);
+    throw new AppError(
+      UNAUTHORIZED,
+      "Invalid credentials",
+      AppErrorCode.InvalidCredentials,
+    );
   }
 
   if (!user.emailVerified) {
@@ -203,6 +220,14 @@ export const loginUser = async (
       "Email not verified. A new verification link has been sent.",
       AppErrorCode.EmailNotVerified,
     );
+  }
+
+  // If user has MFA enabled, issue a short-lived temp token
+  // instead of a full session. The client must complete the MFA
+  // challenge at POST /auth/mfa/challenge to get real tokens.
+  if (user.mfaEnabled) {
+    const tempToken = generateMFATempToken(user.id);
+    return { mfaRequired: true, tempToken };
   }
 
   const refreshToken = generateRandomToken(40);
@@ -220,6 +245,7 @@ export const loginUser = async (
   });
   const accessToken = generateAccessToken(user.id, session.id);
   return {
+    mfaRequired: false,
     accessToken,
     refreshToken,
   };
@@ -236,14 +262,12 @@ export const refreshSession = async (
     where: { refreshTokenHash },
   });
 
-  // 1️⃣ Invalid token
   if (!session) {
     throw new AppError(UNAUTHORIZED, "Invalid refresh token");
   }
 
   const now = new Date();
 
-  // 2️⃣ Reuse detection (revoked token used again)
   if (session.revokedAt) {
     // Revoke all active sessions for user
     await prisma.session.updateMany({
@@ -257,7 +281,10 @@ export const refreshSession = async (
     });
 
     // SECURITY: Log token reuse — this is a potential theft indicator
-    logger.warn({ userId: session.userId, sessionId: session.id }, "Refresh token reuse detected — all sessions revoked");
+    logger.warn(
+      { userId: session.userId, sessionId: session.id },
+      "Refresh token reuse detected — all sessions revoked",
+    );
 
     throw new AppError(
       UNAUTHORIZED,
@@ -387,7 +414,6 @@ export const resetPassword = async (token: string, newPassword: string) => {
   return { message: "Password reset successfully" };
 };
 
-
 export const changePassword = async (
   userId: string,
   currentPassword: string,
@@ -411,4 +437,3 @@ export const changePassword = async (
   });
   return { message: "Password changed successfully" };
 };
-

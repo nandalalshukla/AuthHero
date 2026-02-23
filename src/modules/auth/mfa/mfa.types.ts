@@ -11,3 +11,11 @@ export interface MFAChallengeInput {
   tempToken: string;
   code: string;
 }
+
+export interface MFAChallengeResponse {
+  accessToken: string;
+}
+
+export interface MFADisableInput {
+  code: string;
+}

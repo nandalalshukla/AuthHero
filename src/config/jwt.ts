@@ -41,3 +41,35 @@ export function generateChangePswdToken(userId: string) {
     expiresIn: "35m",
   });
 }
+
+// ── MFA Temp Token ──────────────────────────────────────────────────────
+// Short-lived token issued after credentials pass but before MFA.
+// Contains only the userId — not a full session grant.
+
+export interface MFATempTokenPayload {
+  userId: string;
+  purpose: "mfa_challenge";
+}
+
+export function generateMFATempToken(userId: string): string {
+  return jwt.sign(
+    { userId, purpose: "mfa_challenge" } satisfies MFATempTokenPayload,
+    env.MFA_TEMP_TOKEN_SECRET!,
+    { expiresIn: "5m" },
+  );
+}
+
+export function verifyMFATempToken(token: string): MFATempTokenPayload {
+  try {
+    const payload = jwt.verify(
+      token,
+      env.MFA_TEMP_TOKEN_SECRET!,
+    ) as MFATempTokenPayload;
+    if (payload.purpose !== "mfa_challenge") {
+      throw new Error("Invalid token purpose");
+    }
+    return payload;
+  } catch {
+    throw new Error("Invalid or expired MFA token");
+  }
+}

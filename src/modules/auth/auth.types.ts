@@ -26,8 +26,14 @@ export interface registerResponse {
 
 //What login response should contain
 export interface loginResponse {
+  mfaRequired: false;
   accessToken: string;
   refreshToken: string;
+}
+
+export interface loginMFAResponse {
+  mfaRequired: true;
+  tempToken: string;
 }
 
 export type refreshResponse = {

@@ -8,8 +8,14 @@ import {
   hashBackupCode,
   verifyBackupCode,
 } from "./mfa.crypto";
-import { AppError } from "../../../lib/AppError";
+import { AppError, AppErrorCode } from "../../../lib/AppError";
 import { BAD_REQUEST } from "../../../config/http";
+import {
+  generateAccessToken,
+  generateRandomToken,
+  hashRandomToken,
+} from "../../../config/jwt";
+import { addDays } from "date-fns";
 
 export class MFAService {
   async initiate(userId: string) {
@@ -50,10 +56,20 @@ export class MFAService {
       where: { userId },
     });
 
-    if (!record) throw new AppError(BAD_REQUEST, "MFA has not been set up");
+    if (!record)
+      throw new AppError(
+        BAD_REQUEST,
+        "MFA has not been set up",
+        AppErrorCode.MFANotSetup,
+      );
 
     const valid = verifyTOTP(token, record.secretHash);
-    if (!valid) throw new AppError(BAD_REQUEST, "Invalid MFA token");
+    if (!valid)
+      throw new AppError(
+        BAD_REQUEST,
+        "Invalid MFA token",
+        AppErrorCode.MFAInvalidCode,
+      );
 
     await prisma.mFASecret.update({
       where: { userId },
@@ -71,31 +87,112 @@ export class MFAService {
     return true;
   }
 
-  async verifyChallenge(userId: string, code: string) {
+  /**
+   * Verifies the MFA code (TOTP or backup) and creates a full session.
+   * Called after the user passes the MFA challenge during login.
+   */
+  async verifyChallenge(
+    userId: string,
+    code: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ) {
     const record = await prisma.mFASecret.findUnique({
       where: { userId },
     });
 
-    if (!record || !record.verified) throw new AppError(BAD_REQUEST, "MFA has not been set up");
+    if (!record || !record.verified)
+      throw new AppError(
+        BAD_REQUEST,
+        "MFA has not been set up",
+        AppErrorCode.MFANotSetup,
+      );
 
-    if (verifyTOTP(code, record.secretHash)) {
-      return true;
-    }
+    // Try TOTP code first
+    const isTOTPValid = verifyTOTP(code, record.secretHash);
 
-    for (const hash of record.backupCodes) {
-      if (await verifyBackupCode(code, hash)) {
-        await prisma.mFASecret.update({
-          where: { userId },
-          data: {
-            backupCodes: {
-              set: record.backupCodes.filter((c) => c !== hash),
+    if (!isTOTPValid) {
+      // Fall back to backup codes
+      let backupCodeUsed = false;
+
+      for (const hash of record.backupCodes) {
+        if (await verifyBackupCode(code, hash)) {
+          // Remove the used backup code (one-time use)
+          await prisma.mFASecret.update({
+            where: { userId },
+            data: {
+              backupCodes: {
+                set: record.backupCodes.filter((c) => c !== hash),
+              },
             },
-          },
-        });
-        return true;
+          });
+          backupCodeUsed = true;
+          break;
+        }
+      }
+
+      if (!backupCodeUsed) {
+        throw new AppError(
+          BAD_REQUEST,
+          "Invalid MFA code",
+          AppErrorCode.MFAInvalidCode,
+        );
       }
     }
 
-    throw new AppError(BAD_REQUEST, "Invalid MFA code");
+    // MFA passed — create a real session (same as normal login)
+    const refreshToken = generateRandomToken(40);
+    const refreshTokenHash = hashRandomToken(refreshToken);
+    const refreshTokenExpiresAt = addDays(new Date(), 30);
+
+    const session = await prisma.session.create({
+      data: {
+        userId,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
+        userAgent,
+        ipAddress,
+      },
+    });
+
+    const accessToken = generateAccessToken(userId, session.id);
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Disables MFA for a user after verifying their current TOTP code.
+   * Deletes the MFASecret record and sets mfaEnabled to false.
+   */
+  async disable(userId: string, code: string) {
+    const record = await prisma.mFASecret.findUnique({
+      where: { userId },
+    });
+
+    if (!record || !record.verified)
+      throw new AppError(
+        BAD_REQUEST,
+        "MFA is not enabled",
+        AppErrorCode.MFANotSetup,
+      );
+
+    const valid = verifyTOTP(code, record.secretHash);
+    if (!valid)
+      throw new AppError(
+        BAD_REQUEST,
+        "Invalid MFA code. Please enter the current code from your authenticator app.",
+        AppErrorCode.MFAInvalidCode,
+      );
+
+    // Remove MFA in a transaction for data integrity
+    await prisma.$transaction([
+      prisma.mFASecret.delete({ where: { userId } }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { mfaEnabled: false },
+      }),
+    ]);
+
+    return true;
   }
 }
