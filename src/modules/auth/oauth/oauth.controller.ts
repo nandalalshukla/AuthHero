@@ -11,6 +11,9 @@ import { prisma } from "../../../config/prisma";
 import { refreshTokenCookieOptions } from "../../../config/cookies";
 import { addDays } from "date-fns";
 import { env } from "../../../config/env";
+import { redisClient } from "../../../config/redis";
+import { AppError } from "../../../lib/AppError";
+import { BAD_REQUEST, OK } from "../../../config/http";
 import crypto from "crypto";
 
 export class OAuthController {
@@ -57,7 +60,13 @@ export class OAuthController {
   /**
    * Handles the callback from the OAuth provider.
    * Validates the CSRF state, exchanges the code for a user profile,
-   * then creates a session exactly like the normal login flow.
+   * then stores session data behind a one-time code (NOT in the URL).
+   *
+   * Security: We never put access tokens in redirect URLs because they
+   * leak via browser history, Referer headers, and server logs.
+   * Instead, we generate a short-lived one-time code stored in Redis,
+   * redirect the frontend with that code, and the frontend exchanges
+   * it for real tokens via POST /auth/oauth/exchange.
    */
   static async handleCallback(req: Request, res: Response) {
     const { provider } = req.params as { provider: SupportedProvider };
@@ -87,13 +96,20 @@ export class OAuthController {
 
     const frontendUrl = env.FRONTEND_URL || env.APP_URL;
 
-    // 3. If user has MFA enabled, issue a temp token and redirect
-    //    to the frontend MFA challenge page instead of granting a session.
+    // 3. If user has MFA enabled, issue a temp token via one-time code
     if (user.mfaEnabled) {
       const tempToken = generateMFATempToken(user.id);
-      return res.redirect(
-        `${frontendUrl}/auth/mfa-challenge?tempToken=${tempToken}`,
+      const oneTimeCode = crypto.randomBytes(32).toString("hex");
+
+      // Store in Redis with 2-minute TTL (one-time use)
+      await redisClient.set(
+        `oauth_code:${oneTimeCode}`,
+        JSON.stringify({ mfaRequired: true, tempToken }),
+        "EX",
+        120,
       );
+
+      return res.redirect(`${frontendUrl}/auth/callback?code=${oneTimeCode}`);
     }
 
     // 4. Create session (same logic as email/password login)
@@ -113,12 +129,64 @@ export class OAuthController {
 
     const accessToken = generateAccessToken(user.id, session.id);
 
-    // 5. Set cookies and redirect
-    res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
-
-    // Redirect to frontend with the access token
-    return res.redirect(
-      `${frontendUrl}/auth/callback?accessToken=${accessToken}`,
+    // 5. Store tokens behind a one-time code in Redis (2-minute TTL)
+    const oneTimeCode = crypto.randomBytes(32).toString("hex");
+    await redisClient.set(
+      `oauth_code:${oneTimeCode}`,
+      JSON.stringify({ mfaRequired: false, accessToken, refreshToken }),
+      "EX",
+      120,
     );
+
+    // 6. Redirect with the opaque one-time code (NOT the access token)
+    return res.redirect(`${frontendUrl}/auth/callback?code=${oneTimeCode}`);
+  }
+
+  /**
+   * Exchanges a one-time OAuth code for real tokens.
+   *
+   * POST /auth/oauth/exchange
+   * Body: { code: string }
+   *
+   * The frontend calls this after receiving the one-time code from
+   * the OAuth redirect. The code is consumed (deleted from Redis)
+   * on first use, preventing replay attacks.
+   */
+  static async exchangeCode(req: Request, res: Response) {
+    const { code } = req.body;
+
+    if (!code) {
+      throw new AppError(BAD_REQUEST, "One-time code is required");
+    }
+
+    const key = `oauth_code:${code}`;
+    const data = await redisClient.get(key);
+
+    if (!data) {
+      throw new AppError(BAD_REQUEST, "Invalid or expired code");
+    }
+
+    // Delete immediately — one-time use only
+    await redisClient.del(key);
+
+    const parsed = JSON.parse(data);
+
+    // MFA flow — return temp token for the client to complete MFA challenge
+    if (parsed.mfaRequired) {
+      return res.status(OK).json({
+        success: true,
+        message: "MFA verification required",
+        data: { mfaRequired: true, tempToken: parsed.tempToken },
+      });
+    }
+
+    // Normal flow — set refresh token cookie and return access token
+    res.cookie("refreshToken", parsed.refreshToken, refreshTokenCookieOptions);
+
+    return res.status(OK).json({
+      success: true,
+      message: "OAuth login successful",
+      data: { mfaRequired: false, accessToken: parsed.accessToken },
+    });
   }
 }

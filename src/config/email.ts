@@ -11,8 +11,10 @@ export const transporter = nodemailer.createTransport({
     user: env.EMAIL_USER,
     pass: env.EMAIL_PASS,
   },
+  // In production, always validate TLS certificates.
+  // Set EMAIL_TLS_REJECT_UNAUTHORIZED=false only if you use a self-signed cert in dev.
   tls: {
-    rejectUnauthorized: false, // Allow self-signed certificates
+    rejectUnauthorized: process.env.EMAIL_TLS_REJECT_UNAUTHORIZED !== "false",
   },
   from: {
     name: "AuthHero",

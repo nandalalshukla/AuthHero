@@ -8,96 +8,91 @@ datasource db {
 }
 
 model User {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email          String   @unique
-  passwordHash   String
-  emailVerified  Boolean  @default(false)
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String  @unique
+  passwordHash  String? // null for OAuth-only users
+  emailVerified Boolean @default(false)
 
-  mfaEnabled     Boolean  @default(false)
+  mfaEnabled Boolean @default(false)
 
-  createdAt      DateTime @default(now()) @db.Timestamp(6)
-  updatedAt      DateTime @updatedAt @db.Timestamp(6)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @db.Timestamp(6)
 
-  sessions            Session[]
-  emailVerifications  EmailVerification[]
-  passwordResets      PasswordReset[]
-  oauthAccounts       OAuthAccount[]
-  mfaSecrets          MFASecret?
+  sessions           Session[]
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  oauthAccounts      OAuthAccount[]
+  mfaSecrets         MFASecret?
 }
 
-
 model Session {
-    id             String   @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
-  userId           String   @db.Uuid
-  refreshTokenHash   String @unique
-  expiresAt          DateTime
-  revokedAt          DateTime?
-  lastRotatedAt      DateTime?
-  userAgent          String?
-  ipAddress          String?
-  createdAt        DateTime @default(now()) @db.Timestamp(6)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String    @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastRotatedAt    DateTime?
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime  @default(now()) @db.Timestamp(6)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([refreshTokenHash, userId])
 }
 
 model EmailVerification {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
   tokenHash String
   expiresAt DateTime
-  usedAt    DateTime? 
-  createdAt DateTime @default(now()) @db.Timestamp(6)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now()) @db.Timestamp(6)
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId,tokenHash])
+  @@index([userId, tokenHash])
 }
 
-
 model PasswordReset {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
   tokenHash String
   expiresAt DateTime
   usedAt    DateTime?
 
   createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId,tokenHash])
+  @@index([userId, tokenHash])
 }
 
-
 model OAuthAccount {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @db.Uuid
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
 
-  provider         String
-  providerUserId   String
+  provider       String
+  providerUserId String
 
-  createdAt        DateTime @default(now()) @db.Timestamp(6)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerUserId])
   @@index([userId])
 }
 
-
 model MFASecret {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String   @unique @db.Uuid
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @unique @db.Uuid
 
-  secretHash   String   // encrypted TOTP secret
-  backupCodes  String[] // hashed backup codes
+  secretHash  String // encrypted TOTP secret
+  backupCodes String[] // hashed backup codes
 
-  verified     Boolean  @default(false) // true after first successful TOTP
-  enabledAt    DateTime?
+  verified  Boolean   @default(false) // true after first successful TOTP
+  enabledAt DateTime?
 
-  createdAt    DateTime @default(now()) @db.Timestamp(6)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-

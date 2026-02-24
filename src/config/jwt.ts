@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import { env } from "./env";
 import crypto from "crypto";
+import { AppError } from "../lib/AppError";
+import { UNAUTHORIZED } from "./http";
 
 export function generateAccessToken(userId: string, sessionId: string) {
   return jwt.sign({ userId, sessionId }, env.ACCESS_TOKEN_SECRET!, {
@@ -70,6 +72,6 @@ export function verifyMFATempToken(token: string): MFATempTokenPayload {
     }
     return payload;
   } catch {
-    throw new Error("Invalid or expired MFA token");
+    throw new AppError(UNAUTHORIZED, "Invalid or expired MFA token");
   }
 }

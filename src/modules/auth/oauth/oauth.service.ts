@@ -4,7 +4,6 @@ import { GitHubProvider } from "./providers/github.provider";
 import { FacebookProvider } from "./providers/facebook.provider";
 import type { OAuthProvider } from "./oauth.types";
 
-
 export class OAuthService {
   // Registry of all supported providers
   private static providers: Record<string, OAuthProvider> = {
@@ -61,7 +60,7 @@ export class OAuthService {
       return await tx.user.create({
         data: {
           email: profile.email,
-          passwordHash: "", // Social-only users have no password
+          passwordHash: null, // OAuth-only users have no password
           emailVerified: true,
           oauthAccounts: {
             create: {

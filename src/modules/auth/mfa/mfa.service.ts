@@ -7,6 +7,7 @@ import {
   generateBackupCodes,
   hashBackupCode,
   verifyBackupCode,
+  encryptSecret,
 } from "./mfa.crypto";
 import { AppError, AppErrorCode } from "../../../lib/AppError";
 import { BAD_REQUEST } from "../../../config/http";
@@ -31,19 +32,23 @@ export class MFAService {
     const otpauth = generateOTPAuthURL(user.email, secret);
     const qrCode = await generateQRCode(otpauth);
 
+    // Encrypt the TOTP secret before storing (AES-256-GCM).
+    // The raw secret is only shown to the user via QR code during setup.
+    const encryptedSecret = encryptSecret(secret);
+
     const backupCodes = generateBackupCodes();
     const hashedCodes = await Promise.all(backupCodes.map(hashBackupCode));
 
     await prisma.mFASecret.upsert({
       where: { userId },
       update: {
-        secretHash: secret,
+        secretHash: encryptedSecret,
         backupCodes: hashedCodes,
         verified: false,
       },
       create: {
         userId,
-        secretHash: secret,
+        secretHash: encryptedSecret,
         backupCodes: hashedCodes,
       },
     });

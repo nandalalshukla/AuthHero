@@ -48,7 +48,9 @@ const envSchema = z.object({
   FACEBOOK_REDIRECT_URI: z.string().optional(),
 
   // MFA
-  MFA_ENCRYPTION_KEY: z.string().length(64).optional(),
+  MFA_ENCRYPTION_KEY: z
+    .string()
+    .length(64, "MFA_ENCRYPTION_KEY must be a 64-char hex string (32 bytes)"),
   MFA_TEMP_TOKEN_SECRET: z.string().min(10),
 });
 

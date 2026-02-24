@@ -193,9 +193,11 @@ export const loginUser = async (
 
   //TIMING ATTACK: By always performing a password hash verification, even when the user doesn't exist, we ensure that the response time is consistent regardless of whether the email is registered. This prevents attackers from measuring response times to determine if a user exists in the system, thus mitigating a common timing attack vector.
 
-  const hashToCompare = user?.passwordHash || dummyHash;
+  // Use dummyHash if user doesn't exist OR if user is OAuth-only (no password set).
+  // This prevents timing-based user enumeration in both cases.
+  const hashToCompare = user?.passwordHash ?? dummyHash;
 
-  // Compare password against real hash (or dummy if user not found). This ensures consistent timing whether or not the user exists.
+  // Compare password against real hash (or dummy if user not found / OAuth-only). This ensures consistent timing.
   const isValid = await verifyPassword(password, hashToCompare);
 
   if (!user) {
@@ -205,7 +207,10 @@ export const loginUser = async (
       AppErrorCode.InvalidCredentials,
     );
   }
-  if (!isValid) {
+
+  // If user has no password (OAuth-only account), reject with same error
+  // to prevent account existence/type enumeration.
+  if (!user.passwordHash || !isValid) {
     throw new AppError(
       UNAUTHORIZED,
       "Invalid credentials",
@@ -425,6 +430,12 @@ export const changePassword = async (
   });
   if (!user) {
     throw new AppError(UNAUTHORIZED, "User not found");
+  }
+  if (!user.passwordHash) {
+    throw new AppError(
+      BAD_REQUEST,
+      "This account uses social login and has no password. Use your OAuth provider to sign in.",
+    );
   }
   const isValid = await verifyPassword(currentPassword, user.passwordHash);
   if (!isValid) {

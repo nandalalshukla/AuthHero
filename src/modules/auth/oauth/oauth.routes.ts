@@ -18,4 +18,11 @@ router.get("/:provider", asyncHandler(OAuthController.getAuthUrl));
  */
 router.get("/callback/:provider", asyncHandler(OAuthController.handleCallback));
 
+/**
+ * POST /auth/oauth/exchange
+ * Exchanges a one-time OAuth code for real tokens.
+ * The frontend calls this after receiving the code from the OAuth redirect.
+ */
+router.post("/exchange", asyncHandler(OAuthController.exchangeCode));
+
 export default router;
