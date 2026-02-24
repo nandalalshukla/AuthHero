@@ -68,13 +68,9 @@ export class MFAService {
         AppErrorCode.MFANotSetup,
       );
 
-    const valid = verifyTOTP(token, record.secretHash);
+    const valid = await verifyTOTP(token, record.secretHash);
     if (!valid)
-      throw new AppError(
-        BAD_REQUEST,
-        "Invalid MFA token",
-        AppErrorCode.MFAInvalidCode,
-      );
+      throw new AppError(BAD_REQUEST, "Invalid MFA token", AppErrorCode.MFAInvalidCode);
 
     await prisma.mFASecret.update({
       where: { userId },
@@ -114,7 +110,7 @@ export class MFAService {
       );
 
     // Try TOTP code first
-    const isTOTPValid = verifyTOTP(code, record.secretHash);
+    const isTOTPValid = await verifyTOTP(code, record.secretHash);
 
     if (!isTOTPValid) {
       // Fall back to backup codes
@@ -137,11 +133,7 @@ export class MFAService {
       }
 
       if (!backupCodeUsed) {
-        throw new AppError(
-          BAD_REQUEST,
-          "Invalid MFA code",
-          AppErrorCode.MFAInvalidCode,
-        );
+        throw new AppError(BAD_REQUEST, "Invalid MFA code", AppErrorCode.MFAInvalidCode);
       }
     }
 
@@ -175,13 +167,9 @@ export class MFAService {
     });
 
     if (!record || !record.verified)
-      throw new AppError(
-        BAD_REQUEST,
-        "MFA is not enabled",
-        AppErrorCode.MFANotSetup,
-      );
+      throw new AppError(BAD_REQUEST, "MFA is not enabled", AppErrorCode.MFANotSetup);
 
-    const valid = verifyTOTP(code, record.secretHash);
+    const valid = await verifyTOTP(code, record.secretHash);
     if (!valid)
       throw new AppError(
         BAD_REQUEST,

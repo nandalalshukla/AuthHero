@@ -76,20 +76,20 @@ describe("MFA crypto utilities", () => {
 
       expect(url).toContain("otpauth://totp/");
       expect(url).toContain("AuthHero");
-      expect(url).toContain("test@example.com");
+      expect(url).toContain("test%40example.com");
       expect(url).toContain("secret=");
     });
   });
 
   describe("TOTP verification", () => {
-    it("should verify a valid TOTP code against encrypted secret", () => {
+    it("should verify a valid TOTP code against encrypted secret", async () => {
       // We can't easily test with a real TOTP code,
       // but we can verify the function doesn't throw on valid inputs
       const secret = generateTOTPSecret();
       const encrypted = encryptSecret(secret);
 
       // An invalid code should return false (not throw)
-      const result = verifyTOTP("000000", encrypted);
+      const result = await verifyTOTP("000000", encrypted);
       expect(typeof result).toBe("boolean");
     });
   });

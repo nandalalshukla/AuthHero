@@ -105,9 +105,7 @@ describe("JWT utilities", () => {
     });
 
     it("should throw AppError on invalid MFA temp token", () => {
-      expect(() => verifyMFATempToken("invalid")).toThrow(
-        "Invalid or expired MFA token",
-      );
+      expect(() => verifyMFATempToken("invalid")).toThrow("Invalid or expired MFA token");
     });
   });
 });

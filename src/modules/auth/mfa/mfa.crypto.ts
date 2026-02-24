@@ -1,16 +1,19 @@
-import * as OTPAuth from "otplib";
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from "otplib";
 import argon2 from "argon2";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { env } from "../../../config/env";
 
-const { authenticator } = OTPAuth;
-
-// Allow a 1-step time window tolerance for clock drift between
-// the user's authenticator app and the server
-authenticator.options = {
+// Initialise a TOTP instance with the v13 plugin-based architecture.
+// NobleCryptoPlugin uses @noble/hashes for HMAC-SHA1 and
+// ScureBase32Plugin handles Base32 encoding/decoding.
+// A 1-step window tolerates minor clock drift between the
+// user's authenticator app and the server.
+const totp = new TOTP({
+  crypto: new NobleCryptoPlugin(),
+  base32: new ScureBase32Plugin(),
   window: 1,
-};
+});
 
 // ── AES-256-GCM encryption for TOTP secrets ─────────────────────────────
 // TOTP secrets must be encrypted at rest. If the database is breached,
@@ -75,12 +78,12 @@ export function decryptSecret(encryptedStr: string): string {
 
 // ── TOTP helpers ─────────────────────────────────────────────────────────
 
-export const generateTOTPSecret = () => {
-  return authenticator.generateSecret();
+export const generateTOTPSecret = (): string => {
+  return totp.generateSecret();
 };
 
-export const generateOTPAuthURL = (email: string, secret: string) => {
-  return authenticator.keyuri(email, "AuthHero", secret);
+export const generateOTPAuthURL = (email: string, secret: string): string => {
+  return totp.toURI({ secret, issuer: "AuthHero", label: email });
 };
 
 export const generateQRCode = async (otpauth: string) => {
@@ -89,11 +92,15 @@ export const generateQRCode = async (otpauth: string) => {
 
 /**
  * Verifies a TOTP token against an encrypted secret.
- * Decrypts the secret first, then performs TOTP verification.
+ * Decrypts the secret first, then performs async TOTP verification.
  */
-export const verifyTOTP = (token: string, encryptedSecret: string) => {
+export const verifyTOTP = async (
+  token: string,
+  encryptedSecret: string,
+): Promise<boolean> => {
   const secret = decryptSecret(encryptedSecret);
-  return authenticator.verify({ token, secret });
+  const result = await totp.verify(token, { secret });
+  return result.valid;
 };
 
 // ── Backup codes ─────────────────────────────────────────────────────────

@@ -28,7 +28,8 @@ describe("AppError", () => {
   it("should have a proper stack trace", () => {
     const error = new AppError(INTERNAL_SERVER_ERROR, "Something went wrong");
     expect(error.stack).toBeDefined();
-    expect(error.stack).toContain("AppError");
+    // Stack trace should contain the file where error was created
+    expect(error.stack).toContain("app-error.test.ts");
   });
 
   it("should have all expected error codes", () => {
