@@ -195,6 +195,12 @@ vi.mock("../src/config/prisma", () => ({
     session: {
       findUnique: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+    },
+    mFASecret: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -247,7 +253,7 @@ describe("authenticate middleware", () => {
 
     // Should forward an error to the error middleware
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toBe("Authentication required");
   });
 
@@ -279,7 +285,7 @@ describe("authenticate middleware", () => {
     await authenticate(req, res, next);
 
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toBe("Invalid session");
   });
 
@@ -302,7 +308,7 @@ describe("authenticate middleware", () => {
 
     await authenticate(req, res, next);
 
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toBe("Session revoked");
   });
 
@@ -325,7 +331,7 @@ describe("authenticate middleware", () => {
 
     await authenticate(req, res, next);
 
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toBe("Session expired");
   });
 });
@@ -343,9 +349,6 @@ import { requireMFA } from "../src/middlewares/mfa.middleware";
 describe("requireMFA middleware", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the user mock methods to also include mFASecret
-    mockPrisma.mFASecret = { findUnique: vi.fn() };
-    mockPrisma.user.findUnique = vi.fn();
   });
 
   it("should call next() when user has no MFA (opted out)", async () => {
@@ -393,7 +396,7 @@ describe("requireMFA middleware", () => {
 
     // Inconsistent state — MFA enabled but not verified
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toContain("MFA setup is incomplete");
   });
 
@@ -405,7 +408,7 @@ describe("requireMFA middleware", () => {
     await requireMFA(req, res, next);
 
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    const error = next.mock.calls[0][0] as AppError;
+    const error = next.mock.calls[0]?.[0] as AppError;
     expect(error.message).toBe("Authentication required");
   });
 });

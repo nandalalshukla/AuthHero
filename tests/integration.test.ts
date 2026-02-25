@@ -101,6 +101,16 @@ vi.mock("../src/config/cors", () => ({
   default: (_req: any, _res: any, next: any) => next(),
 }));
 
+// Mock Redis to avoid connection errors in test environment
+vi.mock("../src/config/redis", () => ({
+  redis: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    quit: vi.fn(),
+  },
+}));
+
 // ─── Now import the app and mocked modules ──────────────────────────────
 import app from "../src/app";
 import { prisma } from "../src/config/prisma";
