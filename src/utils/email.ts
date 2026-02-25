@@ -75,10 +75,7 @@ async function sendEmail(to: string, subject: string, html: string) {
         }
       });
     });
-    logger.info(
-      { to, messageId: (info as any).messageId },
-      "Email sent successfully",
-    );
+    logger.info({ to, messageId: (info as any).messageId }, "Email sent successfully");
     return info;
   } catch (error: any) {
     logger.error({ to, err: error.message }, "Failed to send email");

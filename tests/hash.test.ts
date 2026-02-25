@@ -16,7 +16,7 @@ describe("hash utilities", () => {
   it("should reject an incorrect password", async () => {
     const hash = await hashPassword("CorrectP@ss123");
     const isValid = await verifyPassword("WrongP@ss456", hash);
-    expect(isValid).toBe(false);
+    expect(isValid).toBe(false); 
   });
 
   it("should produce different hashes for the same password (salted)", async () => {

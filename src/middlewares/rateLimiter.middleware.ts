@@ -41,4 +41,3 @@ export const refreshRateLimiter = createRateLimiter({
   message: "Too many token refresh attempts. Please try again in 1 minute.",
   keyPrefix: "refresh_token_rl",
 });
-

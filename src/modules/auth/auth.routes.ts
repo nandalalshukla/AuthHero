@@ -60,11 +60,7 @@ router.post(
   asyncHandler(resetPasswordController),
 );
 
-router.post(
-  "/refresh-token",
-  refreshRateLimiter,
-  asyncHandler(refreshController),
-);
+router.post("/refresh-token", refreshRateLimiter, asyncHandler(refreshController));
 
 router.post(
   "/verify-email",

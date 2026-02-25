@@ -2,12 +2,11 @@ import { Redis } from "ioredis";
 import { env } from "./env";
 
 export const redisClient = new Redis({
-    host: env.REDIS_HOST,
-    port: env.REDIS_PORT,
-})
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+});
 
 export const redisConnection = {
-    host: env.REDIS_HOST,
-    port: env.REDIS_PORT,
-}
-
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+};

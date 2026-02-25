@@ -18,8 +18,7 @@ export class OAuthService {
    */
   static async handleCallback(providerName: string, code: string) {
     const strategy = this.providers[providerName];
-    if (!strategy)
-      throw new Error(`Provider ${providerName} is not supported.`);
+    if (!strategy) throw new Error(`Provider ${providerName} is not supported.`);
 
     // 1. Fetch profile from the third-party API
     const profile = await strategy.getProfile(code);

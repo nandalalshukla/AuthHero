@@ -28,7 +28,6 @@ describe("MFA crypto utilities", () => {
 
       expect(encrypted).not.toBe(secret);
       expect(encrypted).toContain(":"); // format: iv:authTag:ciphertext
-
       const decrypted = decryptSecret(encrypted);
       expect(decrypted).toBe(secret);
     });

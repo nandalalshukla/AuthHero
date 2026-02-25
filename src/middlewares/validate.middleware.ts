@@ -16,8 +16,7 @@ import { ZodError } from "zod";
  * has a "body", "query", or "params" key.
  */
 export const validate =
-  (schema: ZodSchema) =>
-  async (req: Request, res: Response, next: NextFunction) => {
+  (schema: ZodSchema) => async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Try parsing as nested { body, query, params } first
       const result = await schema.parseAsync({

@@ -8,6 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import crypto from "node:crypto";
+import process from "node:process";
+import console from "node:console";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

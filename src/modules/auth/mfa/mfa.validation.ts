@@ -10,7 +10,5 @@ export const challengeMFASchema = z.object({
 });
 
 export const disableMFASchema = z.object({
-  code: z
-    .string()
-    .length(6, "Enter the 6-digit code from your authenticator app"),
+  code: z.string().length(6, "Enter the 6-digit code from your authenticator app"),
 });

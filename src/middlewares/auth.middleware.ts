@@ -9,7 +9,6 @@ interface AuthenticatedRequest extends Request {
   user?: AccessTokenPayload;
 }
 
-
 export const authenticate = async (
   req: AuthenticatedRequest,
   _res: Response,
@@ -50,7 +49,7 @@ export const authenticate = async (
     }
 
     req.user = {
-        userId,
+      userId,
       sessionId,
     };
 

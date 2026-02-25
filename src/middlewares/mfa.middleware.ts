@@ -20,11 +20,7 @@ import { FORBIDDEN } from "../config/http";
  * Usage:
  *   router.post("/delete-account", authenticate, requireMFA, handler);
  */
-export const requireMFA = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
+export const requireMFA = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
       throw new AppError(FORBIDDEN, "Authentication required");

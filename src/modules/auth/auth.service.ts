@@ -4,12 +4,7 @@ import { logger } from "../../config/logger";
 import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { AppError, AppErrorCode } from "../../lib/AppError";
-import {
-  CONFLICT,
-  UNAUTHORIZED,
-  BAD_REQUEST,
-  FORBIDDEN,
-} from "../../config/http";
+import { CONFLICT, UNAUTHORIZED, BAD_REQUEST, FORBIDDEN } from "../../config/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
 import {
@@ -43,11 +38,7 @@ export const registerUser = async (
   });
 
   if (existingUser) {
-    throw new AppError(
-      CONFLICT,
-      "User already exists",
-      AppErrorCode.EmailAlreadyExists,
-    );
+    throw new AppError(CONFLICT, "User already exists", AppErrorCode.EmailAlreadyExists);
   }
 
   const passwordHash = await hashPassword(password);
@@ -97,10 +88,7 @@ export const sendVerificationEmail = async (email: string, token: string) => {
   );
 };
 
-export const resendVerificationEmail = async (
-  userId: string,
-  email: string,
-) => {
+export const resendVerificationEmail = async (userId: string, email: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { emailVerified: true },
@@ -291,10 +279,7 @@ export const refreshSession = async (
       "Refresh token reuse detected — all sessions revoked",
     );
 
-    throw new AppError(
-      UNAUTHORIZED,
-      "Token reuse detected. All sessions revoked.",
-    );
+    throw new AppError(UNAUTHORIZED, "Token reuse detected. All sessions revoked.");
   }
 
   // 3️⃣ Expiry check
@@ -328,10 +313,7 @@ export const refreshSession = async (
   });
 
   // 6️⃣ Issue new access token (same session id)
-  const accessToken = generateAccessToken(
-    updatedSession.userId,
-    updatedSession.id,
-  );
+  const accessToken = generateAccessToken(updatedSession.userId, updatedSession.id);
 
   return {
     accessToken,

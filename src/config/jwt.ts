@@ -63,10 +63,7 @@ export function generateMFATempToken(userId: string): string {
 
 export function verifyMFATempToken(token: string): MFATempTokenPayload {
   try {
-    const payload = jwt.verify(
-      token,
-      env.MFA_TEMP_TOKEN_SECRET!,
-    ) as MFATempTokenPayload;
+    const payload = jwt.verify(token, env.MFA_TEMP_TOKEN_SECRET!) as MFATempTokenPayload;
     if (payload.purpose !== "mfa_challenge") {
       throw new Error("Invalid token purpose");
     }

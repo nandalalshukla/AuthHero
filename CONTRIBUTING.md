@@ -12,7 +12,7 @@ Thank you for your interest in contributing! This guide will help you get starte
    ```
 3. **Install dependencies:**
    ```bash
-   npm install
+   bun add
    ```
 4. **Set up environment:**
    ```bash
@@ -21,7 +21,7 @@ Thank you for your interest in contributing! This guide will help you get starte
    ```
 5. **Run database migrations:**
    ```bash
-   npx prisma migrate dev
+   bunx prisma migrate dev
    ```
 6. **Create a branch:**
    ```bash
@@ -32,19 +32,19 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ```bash
 # Start the dev server
-npm run dev
+bun run dev
 
 # Start the email worker (separate terminal)
-npm run worker
+bun run worker
 
 # Run tests
-npm run test
+bun run test
 
 # Run linting
-npm run lint
+bun run lint
 
 # Format code
-npm run format
+bun run format
 ```
 
 ## Code Style

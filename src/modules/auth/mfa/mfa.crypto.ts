@@ -12,7 +12,6 @@ import { env } from "../../../config/env";
 const totp = new TOTP({
   crypto: new NobleCryptoPlugin(),
   base32: new ScureBase32Plugin(),
-  window: 1,
 });
 
 // ── AES-256-GCM encryption for TOTP secrets ─────────────────────────────

@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { OAuthProvider, OAuthUserProfile } from "../oauth.types";
-import {env} from "../../../../config/env";
+import { env } from "../../../../config/env";
 
 export class GoogleProvider implements OAuthProvider {
   private readonly clientId = env.GOOGLE_CLIENT_ID!;
@@ -9,16 +9,13 @@ export class GoogleProvider implements OAuthProvider {
 
   async getProfile(code: string): Promise<OAuthUserProfile> {
     // 1. Exchange auth code for access token
-    const tokenResponse = await axios.post(
-      "https://oauth2.googleapis.com/token",
-      {
-        code,
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        redirect_uri: this.redirectUri,
-        grant_type: "authorization_code",
-      },
-    );
+    const tokenResponse = await axios.post("https://oauth2.googleapis.com/token", {
+      code,
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      redirect_uri: this.redirectUri,
+      grant_type: "authorization_code",
+    });
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) throw new Error("Failed to obtain Google access token");

@@ -32,11 +32,7 @@ export class AppError extends Error {
   public readonly statusCode: httpStatusCode;
   public readonly errorCode?: AppErrorCode;
 
-  constructor(
-    statusCode: httpStatusCode,
-    message: string,
-    errorCode?: AppErrorCode,
-  ) {
+  constructor(statusCode: httpStatusCode, message: string, errorCode?: AppErrorCode) {
     super(message);
     this.statusCode = statusCode;
     this.errorCode = errorCode;
