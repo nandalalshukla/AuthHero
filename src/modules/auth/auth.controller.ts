@@ -10,7 +10,7 @@ import {
   resetPassword,
   forgotPassword,
 } from "./auth.service";
-import { CREATED, OK, BAD_REQUEST, UNAUTHORIZED } from "../../config/http";
+import { CREATED, OK, UNAUTHORIZED } from "../../config/http";
 import { emailQueue } from "../../lib/queues/email.queue";
 import { refreshTokenCookieOptions } from "../../config/cookies";
 import { requireAuth } from "../../utils/requireAuth";

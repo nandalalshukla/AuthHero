@@ -23,15 +23,15 @@ export const validate =
         body: req.body,
         query: req.query,
         params: req.params,
-      });
+      }) as Record<string, unknown>;
 
       // If the schema had body/query/params keys, apply them back
       if (result.body) req.body = result.body;
-      if (result.query) req.query = result.query;
-      if (result.params) req.params = result.params;
+      if (result.query) req.query = result.query as Record<string, any>;
+      if (result.params) req.params = result.params as Record<string, any>;
 
       next();
-    } catch (outerError) {
+    } catch (_outerError) {
       // If nested parsing failed, try flat (body-only) parsing
       try {
         req.body = await schema.parseAsync(req.body);

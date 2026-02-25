@@ -14,7 +14,7 @@ export function verifyAccessToken(token: string) {
   try {
     return jwt.verify(token, env.ACCESS_TOKEN_SECRET!);
   } catch (error) {
-    throw new Error("Invalid or expired access token");
+    throw new Error("Invalid or expired access token", { cause: error });
   }
 }
 
