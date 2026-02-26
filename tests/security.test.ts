@@ -78,7 +78,7 @@ import { prisma } from "../src/config/prisma";
 import { verifyPassword } from "../src/utils/hash";
 import { sendEmail } from "../src/utils/email";
 import { AppError, AppErrorCode } from "../src/lib/AppError";
-import { logger } from "../src/config/logger";
+import { logger } from "../src/lib/logger";
 
 const mockPrisma = prisma as any;
 

@@ -26,7 +26,7 @@ model User {
 }
 
 model Session {
-  id               String    @id @default(dbgenerated("gen_random_uuid ()")) @db.Uuid
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String    @db.Uuid
   refreshTokenHash String    @unique
   expiresAt        DateTime
@@ -50,6 +50,7 @@ model EmailVerification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([tokenHash])
   @@index([userId, tokenHash])
 }
 
@@ -64,6 +65,7 @@ model PasswordReset {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([tokenHash])
   @@index([userId, tokenHash])
 }
 

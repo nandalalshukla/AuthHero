@@ -27,6 +27,7 @@ import {
   forgotPasswordRateLimiter,
   resetPasswordRateLimiter,
   refreshRateLimiter,
+  changePasswordRateLimiter,
 } from "../../middlewares/rateLimiter.middleware";
 import { authenticate } from "../../middlewares/auth.middleware";
 
@@ -74,6 +75,7 @@ router.post("/logout-all", authenticate, asyncHandler(logoutAllController));
 router.post(
   "/change-password",
   authenticate,
+  changePasswordRateLimiter,
   validate(changePasswordSchema),
   asyncHandler(changePasswordController),
 );

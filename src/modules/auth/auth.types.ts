@@ -11,6 +11,7 @@ export interface PublicUser {
   email: string;
   emailVerified: boolean;
   mfaEnabled: boolean;
+  createdAt: Date;
 }
 
 //What access token can contain

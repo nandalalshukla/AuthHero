@@ -2,7 +2,7 @@ import { transporter } from "../config/email";
 import { env } from "../config/env";
 import { AppError } from "../lib/AppError";
 import { INTERNAL_SERVER_ERROR } from "../config/http";
-import { logger } from "../config/logger";
+import { logger } from "../lib/logger";
 
 const emailWrapper = (content: string) => `
 <!DOCTYPE html>
@@ -66,16 +66,8 @@ async function sendEmail(to: string, subject: string, html: string) {
       html: emailWrapper(html),
     };
 
-    const info = await new Promise((resolve, reject) => {
-      transporter.sendMail(mailData, (err, info) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(info);
-        }
-      });
-    });
-    logger.info({ to, messageId: (info as any).messageId }, "Email sent successfully");
+    const info = await transporter.sendMail(mailData);
+    logger.info({ to, messageId: info.messageId }, "Email sent successfully");
     return info;
   } catch (error: any) {
     logger.error({ to, err: error.message }, "Failed to send email");

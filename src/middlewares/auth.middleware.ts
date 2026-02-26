@@ -3,14 +3,9 @@ import { prisma } from "../config/prisma";
 import { verifyAccessToken } from "../config/jwt";
 import { AppError } from "../lib/AppError";
 import { UNAUTHORIZED } from "../config/http";
-import type { AccessTokenPayload } from "../modules/auth/auth.types";
-
-interface AuthenticatedRequest extends Request {
-  user?: AccessTokenPayload;
-}
 
 export const authenticate = async (
-  req: AuthenticatedRequest,
+  req: Request,
   _res: Response,
   next: NextFunction,
 ) => {
@@ -27,11 +22,11 @@ export const authenticate = async (
       throw new AppError(UNAUTHORIZED, "Invalid token format");
     }
 
-    const payload = verifyAccessToken(token);
+    // verifyAccessToken now returns a typed AccessTokenPayload
+    // with runtime validation — no unsafe type assertion needed
+    const { userId, sessionId } = verifyAccessToken(token);
 
-    const { userId, sessionId } = payload as AccessTokenPayload;
-
-    //Check session in DB
+    // Check session in DB
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
     });
@@ -48,10 +43,7 @@ export const authenticate = async (
       throw new AppError(UNAUTHORIZED, "Session expired");
     }
 
-    req.user = {
-      userId,
-      sessionId,
-    };
+    req.user = { userId, sessionId };
 
     next();
   } catch (error) {

@@ -11,12 +11,7 @@ import {
 } from "./mfa.crypto";
 import { AppError, AppErrorCode } from "../../../lib/AppError";
 import { BAD_REQUEST } from "../../../config/http";
-import {
-  generateAccessToken,
-  generateRandomToken,
-  hashRandomToken,
-} from "../../../config/jwt";
-import { addDays } from "date-fns";
+import { createSession } from "../../../lib/session";
 
 export class MFAService {
   async initiate(userId: string) {
@@ -138,23 +133,7 @@ export class MFAService {
     }
 
     // MFA passed — create a real session (same as normal login)
-    const refreshToken = generateRandomToken(40);
-    const refreshTokenHash = hashRandomToken(refreshToken);
-    const refreshTokenExpiresAt = addDays(new Date(), 30);
-
-    const session = await prisma.session.create({
-      data: {
-        userId,
-        refreshTokenHash,
-        expiresAt: refreshTokenExpiresAt,
-        userAgent,
-        ipAddress,
-      },
-    });
-
-    const accessToken = generateAccessToken(userId, session.id);
-
-    return { accessToken, refreshToken };
+    return await createSession(userId, userAgent, ipAddress);
   }
 
   /**

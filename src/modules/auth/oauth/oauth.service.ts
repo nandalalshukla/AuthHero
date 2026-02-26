@@ -2,7 +2,18 @@ import { prisma } from "../../../config/prisma";
 import { GoogleProvider } from "./providers/google.provider";
 import { GitHubProvider } from "./providers/github.provider";
 import { FacebookProvider } from "./providers/facebook.provider";
+import { AppError } from "../../../lib/AppError";
+import { BAD_REQUEST } from "../../../config/http";
 import type { OAuthProvider } from "./oauth.types";
+
+/** Fields returned from OAuth user lookups (never includes passwordHash) */
+const USER_SELECT = {
+  id: true,
+  email: true,
+  emailVerified: true,
+  mfaEnabled: true,
+  createdAt: true,
+} as const;
 
 export class OAuthService {
   // Registry of all supported providers
@@ -12,13 +23,12 @@ export class OAuthService {
     facebook: new FacebookProvider(),
   };
 
-  /**
-   * Main entry point for the OAuth Callback.
-   * Handles profile fetching and DB synchronization.
-   */
+
   static async handleCallback(providerName: string, code: string) {
     const strategy = this.providers[providerName];
-    if (!strategy) throw new Error(`Provider ${providerName} is not supported.`);
+    if (!strategy) {
+      throw new AppError(BAD_REQUEST, `Provider ${providerName} is not supported.`);
+    }
 
     // 1. Fetch profile from the third-party API
     const profile = await strategy.getProfile(code);
@@ -33,7 +43,7 @@ export class OAuthService {
             providerUserId: profile.providerUserId,
           },
         },
-        include: { user: true },
+        include: { user: { select: USER_SELECT } },
       });
 
       if (existingAccount) return existingAccount.user;
@@ -41,6 +51,7 @@ export class OAuthService {
       // Check if the user exists by email (Account Linking)
       const existingUser = await tx.user.findUnique({
         where: { email: profile.email },
+        select: USER_SELECT,
       });
 
       if (existingUser) {
@@ -68,6 +79,7 @@ export class OAuthService {
             },
           },
         },
+        select: USER_SELECT,
       });
     });
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// create-authhero — Zero-dependency CLI scaffolder.
-// Usage: npx create-authhero my-app
+//create-authhero — Zero-dependency CLI scaffolder.
+//Usage: npx create-authhero my-app
 
 import { execSync } from "node:child_process";
 import fs from "node:fs";

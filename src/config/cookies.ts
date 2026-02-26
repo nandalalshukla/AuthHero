@@ -1,4 +1,6 @@
 import type { CookieOptions } from "express";
+import { env } from "./env";
+import { TOKEN_EXPIRY } from "./constants";
 
 /**
  * Cookie configuration for tokens.
@@ -13,20 +15,20 @@ import type { CookieOptions } from "express";
  * - path: "/"       → Available on all routes (not just /auth)
  */
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = env.NODE_ENV === "production";
 
 export const accessTokenCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: isProduction, // Allow HTTP in development
-  sameSite: isProduction ? "strict" : "lax",
-  maxAge: 15 * 60 * 1000, // 15 minutes
+  secure: isProduction,
+  sameSite: "lax", // "strict" breaks OAuth redirects
+  maxAge: TOKEN_EXPIRY.ACCESS_TOKEN_MS,
   path: "/",
 };
 
 export const refreshTokenCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? "strict" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  sameSite: "lax",
+  maxAge: TOKEN_EXPIRY.REFRESH_TOKEN_MS,
   path: "/",
 };

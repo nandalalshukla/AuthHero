@@ -3,6 +3,7 @@ import argon2 from "argon2";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { env } from "../../../config/env";
+import { MFA } from "../../../config/constants";
 
 // Initialise a TOTP instance with the v13 plugin-based architecture.
 // NobleCryptoPlugin uses @noble/hashes for HMAC-SHA1 and
@@ -105,10 +106,12 @@ export const verifyTOTP = async (
 // ── Backup codes ─────────────────────────────────────────────────────────
 
 export const generateBackupCodes = () => {
-  return Array.from({ length: 8 }, () => crypto.randomBytes(4).toString("hex"));
+  return Array.from({ length: MFA.BACKUP_CODE_COUNT }, () =>
+    crypto.randomBytes(4).toString("hex"),
+  );
 };
 
-// Use argon2 consistently (same as password hashing) instead of bcrypt
+//Use argon2 to hash backup codes before storing them in the database.
 export const hashBackupCode = async (code: string) => {
   return argon2.hash(code);
 };

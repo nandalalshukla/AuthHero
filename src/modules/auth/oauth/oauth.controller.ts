@@ -1,19 +1,14 @@
 import type { Request, Response } from "express";
 import { OAuthService } from "./oauth.service";
 import type { SupportedProvider } from "./oauth.types";
-import {
-  generateAccessToken,
-  generateMFATempToken,
-  generateRandomToken,
-  hashRandomToken,
-} from "../../../config/jwt";
-import { prisma } from "../../../config/prisma";
+import { generateMFATempToken } from "../../../config/jwt";
 import { refreshTokenCookieOptions } from "../../../config/cookies";
-import { addDays } from "date-fns";
 import { env } from "../../../config/env";
 import { redisClient } from "../../../config/redis";
 import { AppError } from "../../../lib/AppError";
 import { BAD_REQUEST, OK } from "../../../config/http";
+import { createSession } from "../../../lib/session";
+import { TOKEN_LENGTH, TOKEN_EXPIRY } from "../../../config/constants";
 import crypto from "crypto";
 
 export class OAuthController {
@@ -31,14 +26,14 @@ export class OAuthController {
   static async getAuthUrl(req: Request, res: Response) {
     const { provider } = req.params as { provider: SupportedProvider };
 
-    const state = crypto.randomBytes(32).toString("hex");
+    const state = crypto.randomBytes(TOKEN_LENGTH.OAUTH_STATE).toString("hex");
 
     // Store state in a short-lived httpOnly cookie
     res.cookie(`${provider}_auth_state`, state, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      maxAge: 10 * 60 * 1000, // 10 minutes
+      maxAge: TOKEN_EXPIRY.OAUTH_STATE_MS,
     });
 
     const urls: Record<SupportedProvider, string> = {
@@ -99,43 +94,33 @@ export class OAuthController {
     // 3. If user has MFA enabled, issue a temp token via one-time code
     if (user.mfaEnabled) {
       const tempToken = generateMFATempToken(user.id);
-      const oneTimeCode = crypto.randomBytes(32).toString("hex");
+      const oneTimeCode = crypto.randomBytes(TOKEN_LENGTH.OAUTH_CODE).toString("hex");
 
-      // Store in Redis with 2-minute TTL (one-time use)
+      // Store in Redis with short TTL (one-time use)
       await redisClient.set(
         `oauth_code:${oneTimeCode}`,
         JSON.stringify({ mfaRequired: true, tempToken }),
         "EX",
-        120,
+        TOKEN_EXPIRY.OAUTH_CODE_TTL_SECONDS,
       );
 
       return res.redirect(`${frontendUrl}/auth/callback?code=${oneTimeCode}`);
     }
 
     // 4. Create session (same logic as email/password login)
-    const refreshToken = generateRandomToken(40);
-    const refreshTokenHash = hashRandomToken(refreshToken);
-    const refreshTokenExpiresAt = addDays(new Date(), 30);
+    const { accessToken, refreshToken } = await createSession(
+      user.id,
+      req.headers["user-agent"],
+      req.ip,
+    );
 
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshTokenHash,
-        expiresAt: refreshTokenExpiresAt,
-        userAgent: req.headers["user-agent"],
-        ipAddress: req.ip,
-      },
-    });
-
-    const accessToken = generateAccessToken(user.id, session.id);
-
-    // 5. Store tokens behind a one-time code in Redis (2-minute TTL)
-    const oneTimeCode = crypto.randomBytes(32).toString("hex");
+    // 5. Store tokens behind a one-time code in Redis
+    const oneTimeCode = crypto.randomBytes(TOKEN_LENGTH.OAUTH_CODE).toString("hex");
     await redisClient.set(
       `oauth_code:${oneTimeCode}`,
       JSON.stringify({ mfaRequired: false, accessToken, refreshToken }),
       "EX",
-      120,
+      TOKEN_EXPIRY.OAUTH_CODE_TTL_SECONDS,
     );
 
     // 6. Redirect with the opaque one-time code (NOT the access token)

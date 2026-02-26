@@ -1,6 +1,6 @@
 import app from "./app";
 import { env } from "./config/env";
-import { logger } from "./config/logger";
+import { logger } from "./lib/logger";
 import { prisma } from "./config/prisma";
 import { redisClient } from "./config/redis";
 import { emailWorker } from "./workers/email.worker";

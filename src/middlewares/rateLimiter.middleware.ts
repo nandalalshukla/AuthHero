@@ -41,3 +41,17 @@ export const refreshRateLimiter = createRateLimiter({
   message: "Too many token refresh attempts. Please try again in 1 minute.",
   keyPrefix: "refresh_token_rl",
 });
+
+export const mfaChallengeRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: "Too many MFA attempts. Please try again in 1 minute.",
+  keyPrefix: "mfa_challenge_rl",
+});
+
+export const changePasswordRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: "Too many password change attempts. Please try again in 1 minute.",
+  keyPrefix: "change_password_rl",
+});
