@@ -6,6 +6,9 @@ import { INTERNAL_SERVER_ERROR, BAD_REQUEST } from "../../../../config/http";
 import { logger } from "../../../../lib/logger";
 
 export class FacebookProvider implements OAuthProvider {
+  private static readonly TOKEN_URL = "https://graph.facebook.com/v12.0/oauth/access_token";
+  private static readonly USER_URL = "https://graph.facebook.com/me";
+
   private getConfig() {
     const clientId = env.FACEBOOK_CLIENT_ID;
     const clientSecret = env.FACEBOOK_CLIENT_SECRET;
@@ -27,7 +30,7 @@ export class FacebookProvider implements OAuthProvider {
     try {
       // 1. Exchange auth code for access token
       const tokenResponse = await axios.get(
-        "https://graph.facebook.com/v12.0/oauth/access_token",
+        FacebookProvider.TOKEN_URL,
         {
           params: {
             client_id: clientId,
@@ -44,7 +47,7 @@ export class FacebookProvider implements OAuthProvider {
       }
 
       // 2. Fetch user data (must explicitly ask for 'email' field)
-      const { data: profile } = await axios.get("https://graph.facebook.com/me", {
+      const { data: profile } = await axios.get(FacebookProvider.USER_URL, {
         params: {
           fields: "id,email",
           access_token: accessToken,

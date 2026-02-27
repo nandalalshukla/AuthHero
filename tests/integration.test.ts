@@ -74,8 +74,23 @@ vi.mock("../src/utils/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../src/config/logger", () => ({
+vi.mock("../src/lib/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+// Mock Redis to prevent real connection attempts
+vi.mock("../src/config/redis", () => ({
+  redisClient: {
+    on: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    quit: vi.fn(),
+  },
+  redisConnection: {
+    host: "localhost",
+    port: 6379,
+  },
 }));
 
 // Mock the BullMQ email queue (so we don't need Redis running)
@@ -93,7 +108,9 @@ vi.mock("../src/middlewares/rateLimiter.middleware", () => ({
   verifyEmailRateLimiter: (_req: any, _res: any, next: any) => next(),
   forgotPasswordRateLimiter: (_req: any, _res: any, next: any) => next(),
   resetPasswordRateLimiter: (_req: any, _res: any, next: any) => next(),
+  changePasswordRateLimiter: (_req: any, _res: any, next: any) => next(),
   refreshRateLimiter: (_req: any, _res: any, next: any) => next(),
+  mfaChallengeRateLimiter: (_req: any, _res: any, next: any) => next(),
 }));
 
 // Mock CORS to allow all origins in tests

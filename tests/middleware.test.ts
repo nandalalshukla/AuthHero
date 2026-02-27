@@ -169,7 +169,7 @@ describe("validate middleware", () => {
     const res = createMockRes();
     const next = vi.fn();
 
-    await validate(nestedSchema)(req, res, next);
+    await validate(nestedSchema, "nested")(req, res, next);
 
     expect(next).toHaveBeenCalled();
   });

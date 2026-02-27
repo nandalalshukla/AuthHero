@@ -61,8 +61,29 @@ vi.mock("../src/config/jwt", () => ({
   generateMFATempToken: vi.fn().mockReturnValue("mock-mfa-temp-token"),
 }));
 
-vi.mock("../src/config/logger", () => ({
+vi.mock("../src/lib/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+// Mock the email queue to prevent BullMQ connection
+vi.mock("../src/lib/queues/email.queue", () => ({
+  emailQueue: {
+    add: vi.fn(),
+  },
+}));
+
+vi.mock("../src/config/redis", () => ({
+  redisClient: {
+    on: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    quit: vi.fn(),
+  },
+  redisConnection: {
+    host: "localhost",
+    port: 6379,
+  },
 }));
 
 import {
@@ -75,6 +96,7 @@ import {
 } from "../src/modules/auth/auth.service";
 
 import { prisma } from "../src/config/prisma";
+import { emailQueue } from "../src/lib/queues/email.queue";
 import { verifyPassword } from "../src/utils/hash";
 import { sendEmail } from "../src/utils/email";
 import { AppError, AppErrorCode } from "../src/lib/AppError";
@@ -325,7 +347,7 @@ describe("Security", () => {
       ).resolves.toBeUndefined();
 
       // Should NOT send any email or create a reset token
-      expect(sendEmail).not.toHaveBeenCalled();
+      expect(emailQueue.add).not.toHaveBeenCalled();
       expect(mockPrisma.passwordReset.create).not.toHaveBeenCalled();
     });
 
@@ -338,7 +360,7 @@ describe("Security", () => {
 
       await forgotPassword("test@example.com");
 
-      expect(sendEmail).toHaveBeenCalled();
+      expect(emailQueue.add).toHaveBeenCalled();
       expect(mockPrisma.passwordReset.create).toHaveBeenCalled();
     });
   });

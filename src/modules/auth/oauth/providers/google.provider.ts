@@ -6,6 +6,9 @@ import { INTERNAL_SERVER_ERROR, BAD_REQUEST } from "../../../../config/http";
 import { logger } from "../../../../lib/logger";
 
 export class GoogleProvider implements OAuthProvider {
+  private static readonly TOKEN_URL = "https://oauth2.googleapis.com/token";
+  private static readonly USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+
   private getConfig() {
     const clientId = env.GOOGLE_CLIENT_ID;
     const clientSecret = env.GOOGLE_CLIENT_SECRET;
@@ -26,7 +29,7 @@ export class GoogleProvider implements OAuthProvider {
 
     try {
       // 1. Exchange auth code for access token
-      const tokenResponse = await axios.post("https://oauth2.googleapis.com/token", {
+      const tokenResponse = await axios.post(GoogleProvider.TOKEN_URL, {
         code,
         client_id: clientId,
         client_secret: clientSecret,
@@ -41,7 +44,7 @@ export class GoogleProvider implements OAuthProvider {
 
       // 2. Fetch user profile using the access token
       const { data: profile } = await axios.get(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
+        GoogleProvider.USERINFO_URL,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         },

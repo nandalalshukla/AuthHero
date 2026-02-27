@@ -6,6 +6,10 @@ import { INTERNAL_SERVER_ERROR, BAD_REQUEST } from "../../../../config/http";
 import { logger } from "../../../../lib/logger";
 
 export class GitHubProvider implements OAuthProvider {
+  private static readonly TOKEN_URL = "https://github.com/login/oauth/access_token";
+  private static readonly USER_URL = "https://api.github.com/user";
+  private static readonly EMAILS_URL = "https://api.github.com/user/emails";
+
   private getConfig() {
     const clientId = env.GITHUB_CLIENT_ID;
     const clientSecret = env.GITHUB_CLIENT_SECRET;
@@ -27,7 +31,7 @@ export class GitHubProvider implements OAuthProvider {
     try {
       // 1. Exchange auth code for access token
       const tokenResponse = await axios.post(
-        "https://github.com/login/oauth/access_token",
+        GitHubProvider.TOKEN_URL,
         {
           client_id: clientId,
           client_secret: clientSecret,
@@ -43,13 +47,13 @@ export class GitHubProvider implements OAuthProvider {
       }
 
       // 2. Fetch the GitHub User profile
-      const { data: profile } = await axios.get("https://api.github.com/user", {
+      const { data: profile } = await axios.get(GitHubProvider.USER_URL, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       // 3. Fetch emails (GitHub requires a separate call for private emails)
       const { data: emails } = await axios.get(
-        "https://api.github.com/user/emails",
+        GitHubProvider.EMAILS_URL,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         },

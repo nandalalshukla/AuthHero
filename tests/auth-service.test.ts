@@ -14,6 +14,27 @@ vi.mock("../src/config/env", () => ({
   },
 }));
 
+// Mock the email queue to prevent BullMQ connection
+vi.mock("../src/lib/queues/email.queue", () => ({
+  emailQueue: {
+    add: vi.fn().mockResolvedValue(true),
+  },
+}));
+
+vi.mock("../src/config/redis", () => ({
+  redisClient: {
+    on: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    quit: vi.fn(),
+  },
+  redisConnection: {
+    host: "localhost",
+    port: 6379,
+  },
+}));
+
 // Mock Prisma — this replaces the real database with fake functions
 // that we can control in each test.
 vi.mock("../src/config/prisma", () => ({
@@ -88,6 +109,8 @@ import {
 } from "../src/modules/auth/auth.service";
 
 import { prisma } from "../src/config/prisma";
+import { emailQueue } from "../src/lib/queues/email.queue";
+import { emailQueue } from "../src/lib/queues/email.queue";
 import { verifyPassword, hashPassword } from "../src/utils/hash";
 import { sendEmail } from "../src/utils/email";
 import { AppError } from "../src/lib/AppError";
@@ -495,7 +518,7 @@ describe("auth.service", () => {
       await forgotPassword("test@example.com");
 
       expect(mockPrisma.passwordReset.create).toHaveBeenCalled();
-      expect(sendEmail).toHaveBeenCalled();
+      expect(emailQueue.add).toHaveBeenCalled();
     });
 
     it("should silently return for non-existent user (prevents enumeration)", async () => {
@@ -506,7 +529,7 @@ describe("auth.service", () => {
 
       // Should NOT attempt to create a reset token or send email
       expect(mockPrisma.passwordReset.create).not.toHaveBeenCalled();
-      expect(sendEmail).not.toHaveBeenCalled();
+      expect(emailQueue.add).not.toHaveBeenCalled();
     });
   });
 
