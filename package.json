@@ -54,6 +54,8 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "worker": "bun --watch src/workers/email.worker.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target node",
+    "start": "bun dist/index.js",
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",

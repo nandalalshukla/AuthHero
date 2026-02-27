@@ -1,4 +1,4 @@
-import { rateLimit, type Options } from "express-rate-limit";
+import { rateLimit, type Options, ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import type { RedisReply } from "rate-limit-redis";
 import { redisClient } from "../config/redis";
@@ -20,14 +20,16 @@ export const createRateLimiter = ({
   return rateLimit({
     store: new RedisStore({
       prefix: keyPrefix,
-      sendCommand: async (...args: string[]) =>
-        (await redisClient.sendCommand(args as any)) as RedisReply,
+      sendCommand: async (...args: string[]) => {
+        const [command, ...commandArgs] = args;
+        return (await redisClient.call(command as string, ...commandArgs)) as RedisReply;
+      },
     }),
     // Use IP as the primary rate limit key.
     // DO NOT use req.body.email as primary — attackers can rotate fake emails
     // to bypass rate limiting. IP is the one thing they can't easily change.
     keyGenerator: (req) => {
-      const ip = req.ip ?? "unknown";
+      const ip = ipKeyGenerator(req.ip || "unknown");
       const email = req.body?.email;
       // Combine IP + email so the same IP can't brute-force different accounts
       return email ? `${keyPrefix}:${ip}:${email}` : `${keyPrefix}:${ip}`;

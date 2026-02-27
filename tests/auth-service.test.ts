@@ -110,7 +110,6 @@ import {
 
 import { prisma } from "../src/config/prisma";
 import { emailQueue } from "../src/lib/queues/email.queue";
-import { emailQueue } from "../src/lib/queues/email.queue";
 import { verifyPassword, hashPassword } from "../src/utils/hash";
 import { sendEmail } from "../src/utils/email";
 import { AppError } from "../src/lib/AppError";
