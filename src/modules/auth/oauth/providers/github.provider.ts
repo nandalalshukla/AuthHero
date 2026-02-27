@@ -52,12 +52,9 @@ export class GitHubProvider implements OAuthProvider {
       });
 
       // 3. Fetch emails (GitHub requires a separate call for private emails)
-      const { data: emails } = await axios.get(
-        GitHubProvider.EMAILS_URL,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
+      const { data: emails } = await axios.get(GitHubProvider.EMAILS_URL, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
 
       // Find the primary, verified email
       const primaryEmail =

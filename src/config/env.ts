@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-
 const envSchema = z.object({
   // Server
   PORT: z.string().default("5000"),

@@ -43,12 +43,9 @@ export class GoogleProvider implements OAuthProvider {
       }
 
       // 2. Fetch user profile using the access token
-      const { data: profile } = await axios.get(
-        GoogleProvider.USERINFO_URL,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
+      const { data: profile } = await axios.get(GoogleProvider.USERINFO_URL, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
 
       return {
         providerUserId: profile.id,
@@ -62,4 +59,3 @@ export class GoogleProvider implements OAuthProvider {
     }
   }
 }
-

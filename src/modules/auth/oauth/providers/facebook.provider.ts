@@ -6,7 +6,8 @@ import { INTERNAL_SERVER_ERROR, BAD_REQUEST } from "../../../../config/http";
 import { logger } from "../../../../lib/logger";
 
 export class FacebookProvider implements OAuthProvider {
-  private static readonly TOKEN_URL = "https://graph.facebook.com/v12.0/oauth/access_token";
+  private static readonly TOKEN_URL =
+    "https://graph.facebook.com/v12.0/oauth/access_token";
   private static readonly USER_URL = "https://graph.facebook.com/me";
 
   private getConfig() {
@@ -29,17 +30,14 @@ export class FacebookProvider implements OAuthProvider {
 
     try {
       // 1. Exchange auth code for access token
-      const tokenResponse = await axios.get(
-        FacebookProvider.TOKEN_URL,
-        {
-          params: {
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: redirectUri,
-            code,
-          },
+      const tokenResponse = await axios.get(FacebookProvider.TOKEN_URL, {
+        params: {
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          code,
         },
-      );
+      });
 
       const accessToken = tokenResponse.data.access_token;
       if (!accessToken) {

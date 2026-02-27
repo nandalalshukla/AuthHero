@@ -1,6 +1,9 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
-import { sendVerificationEmail, resendVerificationEmail } from "../modules/auth/auth.service";
+import {
+  sendVerificationEmail,
+  resendVerificationEmail,
+} from "../modules/auth/auth.service";
 import { sendEmail } from "../utils/email";
 import { logger } from "../lib/logger";
 

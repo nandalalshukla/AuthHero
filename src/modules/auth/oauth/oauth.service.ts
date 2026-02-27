@@ -23,7 +23,6 @@ export class OAuthService {
     facebook: new FacebookProvider(),
   };
 
-
   static async handleCallback(providerName: string, code: string) {
     const strategy = this.providers[providerName];
     if (!strategy) {

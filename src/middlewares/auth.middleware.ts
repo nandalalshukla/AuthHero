@@ -4,11 +4,7 @@ import { verifyAccessToken } from "../config/jwt";
 import { AppError } from "../lib/AppError";
 import { UNAUTHORIZED } from "../config/http";
 
-export const authenticate = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
+export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 

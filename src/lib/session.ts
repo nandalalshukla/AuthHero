@@ -1,9 +1,5 @@
 import { prisma } from "../config/prisma";
-import {
-  generateAccessToken,
-  generateRandomToken,
-  hashRandomToken,
-} from "../config/jwt";
+import { generateAccessToken, generateRandomToken, hashRandomToken } from "../config/jwt";
 import { addDays } from "date-fns";
 import { TOKEN_LENGTH, TOKEN_EXPIRY } from "../config/constants";
 
