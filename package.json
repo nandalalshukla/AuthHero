@@ -1,6 +1,6 @@
 {
   "name": "@nandalalshukla/auth-hero",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A complete, secure, production-ready authentication server with email/password, OAuth, MFA (TOTP), session management, and more.",
   "type": "module",
   "main": "./dist/index.js",
