@@ -52,9 +52,11 @@ const envSchema = z.object({
 const parsedEnv = envSchema.safeParse(process.env);
 
 if (!parsedEnv.success) {
-  console.error("Invalid environment variables:");
-  console.error(parsedEnv.error.flatten().fieldErrors);
-  process.exit(1);
+  const fields = parsedEnv.error.flatten().fieldErrors;
+  const missing = Object.entries(fields)
+    .map(([key, msgs]) => `  ${key}: ${msgs?.join(", ")}`)
+    .join("\n");
+  throw new Error(`AuthHero — invalid environment variables:\n${missing}`);
 }
 
 export const env = parsedEnv.data;

@@ -1,288 +1,444 @@
 # AuthHero
 
-A **complete, secure, production-ready** authentication server built with Express 5, Prisma, PostgreSQL, and Redis. Supports email/password login, OAuth (Google, GitHub, Facebook), MFA (TOTP), session management, and more.
+Drop-in authentication for Express apps. Email/password, OAuth, MFA — all production-ready, fully typed, and secured out of the box.
 
-Use it as a **boilerplate** — scaffold your project and customise to fit your needs.
+```bash
+npm install authhero express
+```
 
----
+```ts
+import "dotenv/config";
+import { createAuthHero } from "authhero";
 
-## Features
+const auth = await createAuthHero();
+auth.app.listen(3000);
+```
 
-- **Email / Password** — Register, login, email verification, password reset
-- **OAuth 2.0** — Google, GitHub, Facebook with one-time code exchange (no tokens in URLs)
-- **Multi-Factor Authentication** — TOTP (authenticator apps) with AES-256-GCM encrypted secrets + backup codes
-- **Session Management** — JWT access tokens + rotating HTTP-only refresh tokens stored in PostgreSQL
-- **Security Hardened**
-  - Argon2id password hashing
-  - Rate limiting per route (express-rate-limit)
-  - Strict CORS origin whitelist
-  - Zod request validation
-  - Encrypted MFA secrets at rest
-- **Background Jobs** — Async email delivery via BullMQ workers
-- **Structured Logging** — Pino with pino-pretty for development
-- **Type-Safe** — Fully typed with TypeScript and Zod v4
+That's it. You now have register, login, email verification, password reset, OAuth (Google/GitHub/Facebook), MFA (TOTP), session management, and rate limiting — all running on port 3000.
 
 ---
 
-## Tech Stack
+## Table of Contents
 
-| Layer         | Technology                                      |
-| ------------- | ----------------------------------------------- |
-| Runtime       | Node.js ≥ 18 / Bun                              |
-| Framework     | Express 5                                       |
-| Database      | PostgreSQL (Prisma 7 with `@prisma/adapter-pg`) |
-| Cache / Queue | Redis (ioredis) + BullMQ                        |
-| Auth          | JWT (jsonwebtoken) + Argon2                     |
-| MFA           | otplib 13 (TOTP) + QRCode                       |
-| Validation    | Zod 4                                           |
-| Email         | Nodemailer                                      |
-| Logging       | Pino                                            |
-| Testing       | Vitest + Supertest                              |
-| Linting       | ESLint + Prettier                               |
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Setup](#quick-setup)
+- [Usage](#usage)
+  - [Standalone App](#standalone-app)
+  - [Mount on Your Own Express App](#mount-on-your-own-express-app)
+  - [Protect Your Routes](#protect-your-routes)
+  - [Access the Database](#access-the-database)
+  - [Graceful Shutdown](#graceful-shutdown)
+- [API Reference](#api-reference)
+  - [`createAuthHero()`](#createauthhero)
+  - [Auth Endpoints](#auth-endpoints)
+  - [OAuth Endpoints](#oauth-endpoints)
+  - [MFA Endpoints](#mfa-endpoints)
+  - [Error Codes](#error-codes)
+- [Environment Variables](#environment-variables)
+- [Authentication Flows](#authentication-flows)
+- [Security](#security)
+- [Boilerplate Mode](#boilerplate-mode)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## Quick Start
+## Prerequisites
 
-### Prerequisites
-
-- **Node.js** ≥ 18 (or [Bun](https://bun.sh))
+- **Node.js** >= 18
 - **PostgreSQL** running locally or remotely
 - **Redis** running locally or remotely
 
-### 1. Clone & Install
+---
+
+## Installation
 
 ```bash
-git clone https://github.com/<your-username>/authhero.git
-cd authhero
-npm install
+npm install authhero express
 ```
 
-### 2. Configure Environment
+---
+
+## Quick Setup
+
+### 1. Copy the Prisma schema and run migrations
 
 ```bash
-cp .env.example .env
+cp node_modules/authhero/prisma/schema.prisma prisma/schema.prisma
+npx prisma migrate dev --name init
 ```
 
-Open `.env` and fill in the required values. Generate JWT and MFA secrets:
+### 2. Create your `.env` file
 
 ```bash
-# Run this once for each secret
+cp node_modules/authhero/.env.example .env
+```
+
+### 3. Generate secrets
+
+Run this command once for each secret you need to fill in:
+
+```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### 3. Set Up Database
+### 4. Start your app
 
-```bash
-npx prisma migrate dev
+```ts
+import "dotenv/config";
+import { createAuthHero } from "authhero";
+
+const auth = await createAuthHero();
+auth.app.listen(3000, () => console.log("Running on http://localhost:3000"));
 ```
 
-### 4. Start the Server
+### 5. Verify it works
 
 ```bash
-# Development (with Bun hot-reload)
-npm run dev
-
-# Start the email worker in a separate terminal
-npm run worker
-```
-
-The server starts on `http://localhost:5000` (configurable via `PORT`).
-
-### 5. Verify
-
-```bash
-curl http://localhost:5000/health
-# → { "status": "ok", "timestamp": "..." }
+curl http://localhost:3000/health
+# { "status": "ok", "timestamp": "2026-02-27T..." }
 ```
 
 ---
 
-## API Endpoints
+## Usage
 
-### Auth — `/auth`
+### Standalone App
 
-| Method | Path                    | Auth | Description                                        |
-| ------ | ----------------------- | ---- | -------------------------------------------------- |
-| `POST` | `/auth/register`        | No   | Create a new account                               |
-| `POST` | `/auth/login`           | No   | Login with email & password                        |
-| `POST` | `/auth/verify-email`    | No   | Verify email with OTP token                        |
-| `POST` | `/auth/forgot-password` | No   | Send password reset email                          |
-| `POST` | `/auth/reset-password`  | No   | Reset password with token                          |
-| `POST` | `/auth/refresh-token`   | No   | Rotate refresh token → new access + refresh tokens |
-| `POST` | `/auth/change-password` | Yes  | Change password (requires current password)        |
-| `POST` | `/auth/logout`          | Yes  | Revoke current session                             |
-| `POST` | `/auth/logout-all`      | Yes  | Revoke all sessions                                |
+Use the built-in Express app. It comes with Helmet, CORS, cookie parsing, rate limiting, all auth routes, and a global error handler — fully configured.
 
-### OAuth — `/auth/oauth`
+```ts
+import "dotenv/config";
+import { createAuthHero } from "authhero";
 
-| Method | Path                             | Auth | Description                        |
-| ------ | -------------------------------- | ---- | ---------------------------------- |
-| `GET`  | `/auth/oauth/:provider`          | No   | Get OAuth authorization URL        |
-| `GET`  | `/auth/oauth/callback/:provider` | No   | OAuth redirect callback (internal) |
-| `POST` | `/auth/oauth/exchange`           | No   | Exchange one-time code for tokens  |
+const auth = await createAuthHero();
 
-Supported providers: `google`, `github`, `facebook`
+auth.app.listen(3000, () => {
+  console.log("AuthHero running on http://localhost:3000");
+});
+```
 
-### MFA — `/auth/mfa`
+### Mount on Your Own Express App
 
-| Method | Path                  | Auth | Description                         |
-| ------ | --------------------- | ---- | ----------------------------------- |
-| `POST` | `/auth/mfa/setup`     | Yes  | Generate QR code + backup codes     |
-| `POST` | `/auth/mfa/verify`    | Yes  | Verify TOTP code & enable MFA       |
-| `POST` | `/auth/mfa/challenge` | No\* | Complete MFA during login           |
-| `POST` | `/auth/mfa/disable`   | Yes  | Disable MFA (requires current TOTP) |
+Already have an Express app? Just mount the route modules:
 
-\* Uses a temporary MFA token from the login response.
+```ts
+import "dotenv/config";
+import express from "express";
+import cookieParser from "cookie-parser";
+import { createAuthHero } from "authhero";
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+const auth = await createAuthHero();
+
+// Mount auth routes
+app.use("/auth", auth.routes.auth);
+app.use("/auth/oauth", auth.routes.oauth);
+app.use("/auth/mfa", auth.routes.mfa);
+
+// Your own routes go here
+app.get("/", (_req, res) => res.json({ hello: "world" }));
+
+// Error handler MUST be last
+app.use(auth.errorMiddleware);
+
+app.listen(3000);
+```
+
+### Protect Your Routes
+
+Use `auth.authenticate` to guard any route with JWT authentication. The user's ID and session ID are available on `req.user`.
+
+```ts
+import { createAuthHero } from "authhero";
+
+const auth = await createAuthHero();
+
+// Requires a valid access token in the Authorization header
+app.get("/me", auth.authenticate, async (req, res) => {
+  const user = await auth.prisma.user.findUnique({
+    where: { id: req.user!.userId },
+    select: { id: true, email: true, emailVerified: true, mfaEnabled: true },
+  });
+  res.json(user);
+});
+
+// Requires valid access token + verified MFA
+app.delete("/account", auth.authenticate, auth.requireMFA, async (req, res) => {
+  await auth.prisma.user.delete({ where: { id: req.user!.userId } });
+  res.json({ deleted: true });
+});
+```
+
+### Access the Database
+
+The `auth.prisma` client gives you full access to the database. Use it for custom queries alongside AuthHero's built-in operations.
+
+```ts
+// Get all users
+const users = await auth.prisma.user.findMany({
+  select: { id: true, email: true, createdAt: true },
+});
+
+// Get user count
+const count = await auth.prisma.user.count();
+```
+
+### Graceful Shutdown
+
+Call `auth.shutdown()` to close database, Redis, and email worker connections cleanly.
+
+```ts
+const auth = await createAuthHero();
+const server = auth.app.listen(3000);
+
+process.on("SIGTERM", async () => {
+  server.close();
+  await auth.shutdown();
+  process.exit(0);
+});
+```
 
 ---
 
-## Project Structure
+## API Reference
 
+### `createAuthHero()`
+
+Returns a `Promise<AuthHero>` with the following properties:
+
+| Property          | Type                  | Description                                        |
+| ----------------- | --------------------- | -------------------------------------------------- |
+| `app`             | `Express`             | Full Express app with all routes and middleware    |
+| `routes.auth`     | `Router`              | Auth routes — register, login, verify, reset, etc. |
+| `routes.oauth`    | `Router`              | OAuth routes — Google, GitHub, Facebook            |
+| `routes.mfa`      | `Router`              | MFA routes — setup, verify, challenge, disable     |
+| `authenticate`    | `RequestHandler`      | JWT middleware — protects routes                   |
+| `requireMFA`      | `RequestHandler`      | MFA enforcement middleware                         |
+| `errorMiddleware` | `ErrorRequestHandler` | Error handler — must be the last middleware        |
+| `prisma`          | `PrismaClient`        | Database client for custom queries                 |
+| `shutdown()`      | `() => Promise<void>` | Close all connections gracefully                   |
+
+### Auth Endpoints
+
+All routes are prefixed with `/auth` when using the standalone app.
+
+| Method | Path               | Auth | Body                               | Description                 |
+| ------ | ------------------ | ---- | ---------------------------------- | --------------------------- |
+| POST   | `/register`        | No   | `{ email, password }`              | Create account              |
+| POST   | `/login`           | No   | `{ email, password }`              | Login                       |
+| POST   | `/verify-email`    | No   | `{ token }`                        | Verify email address        |
+| POST   | `/forgot-password` | No   | `{ email }`                        | Send reset email            |
+| POST   | `/reset-password`  | No   | `{ token, newPassword }`           | Reset password              |
+| POST   | `/change-password` | Yes  | `{ currentPassword, newPassword }` | Change password             |
+| POST   | `/refresh-token`   | No   | —                                  | Rotate tokens (uses cookie) |
+| POST   | `/logout`          | Yes  | —                                  | Revoke current session      |
+| POST   | `/logout-all`      | Yes  | —                                  | Revoke all sessions         |
+
+**Password requirements:** min 8 chars, at least one lowercase, one uppercase, one digit, one special character.
+
+### OAuth Endpoints
+
+Prefixed with `/auth/oauth`. Supported providers: `google`, `github`, `facebook`.
+
+| Method | Path                  | Description                        |
+| ------ | --------------------- | ---------------------------------- |
+| GET    | `/:provider`          | Get OAuth authorization URL        |
+| GET    | `/callback/:provider` | OAuth redirect callback (internal) |
+| POST   | `/exchange`           | Exchange one-time code for tokens  |
+
+**OAuth flow:**
+
+1. Frontend calls `GET /auth/oauth/google` → gets an authorization URL
+2. Redirect user to that URL → user grants permission
+3. Provider redirects to callback → AuthHero stores tokens in Redis
+4. Frontend receives a one-time code via redirect query param
+5. Frontend calls `POST /auth/oauth/exchange` with the code → gets access + refresh tokens
+
+### MFA Endpoints
+
+Prefixed with `/auth/mfa`. Uses TOTP (compatible with Google Authenticator, Authy, etc.)
+
+| Method | Path         | Auth  | Body                  | Description                |
+| ------ | ------------ | ----- | --------------------- | -------------------------- |
+| POST   | `/setup`     | Yes   | —                     | Get QR code + backup codes |
+| POST   | `/verify`    | Yes   | `{ code }`            | Verify TOTP and enable MFA |
+| POST   | `/challenge` | Token | `{ tempToken, code }` | Complete MFA during login  |
+| POST   | `/disable`   | Yes   | `{ code }`            | Disable MFA                |
+
+**MFA login flow:**
+
+1. `POST /auth/login` → returns `{ mfaRequired: true, tempToken: "..." }`
+2. `POST /auth/mfa/challenge` with the temp token + TOTP code → returns access + refresh tokens
+
+### Error Codes
+
+All errors follow a consistent format:
+
+```json
+{
+  "success": false,
+  "message": "Human-readable message",
+  "errorCode": "MACHINE_READABLE_CODE"
+}
 ```
-src/
-├── app.ts                    # Express app setup & middleware
-├── index.ts                  # Server entry point
-├── config/                   # Configuration modules
-│   ├── cors.ts               # CORS whitelist
-│   ├── cookies.ts            # Cookie options
-│   ├── email.ts              # Nodemailer transport
-│   ├── env.ts                # Zod-validated env vars
-│   ├── http.ts               # HTTP status codes
-│   ├── jwt.ts                # JWT sign/verify helpers
-│   ├── logger.ts             # Pino logger
-│   ├── prisma.ts             # Prisma client instance
-│   └── redis.ts              # Redis client
-├── lib/                      # Shared utilities
-│   ├── AppError.ts           # Typed error class
-│   ├── asyncHandler.ts       # Express async wrapper
-│   └── queues/
-│       └── email.queue.ts    # BullMQ email queue
-├── middlewares/
-│   ├── auth.middleware.ts     # JWT authentication guard
-│   ├── error.middleware.ts    # Global error handler
-│   ├── mfa.middleware.ts      # MFA enforcement
-│   ├── rateLimiter.middleware.ts # Per-route rate limits
-│   └── validate.middleware.ts # Zod request validation
-├── modules/
-│   └── auth/
-│       ├── auth.controller.ts
-│       ├── auth.routes.ts
-│       ├── auth.service.ts
-│       ├── auth.types.ts
-│       ├── auth.validation.ts
-│       ├── mfa/
-│       │   ├── mfa.controller.ts
-│       │   ├── mfa.crypto.ts    # TOTP, encryption, backup codes
-│       │   ├── mfa.routes.ts
-│       │   ├── mfa.service.ts
-│       │   ├── mfa.types.ts
-│       │   └── mfa.validation.ts
-│       └── oauth/
-│           ├── oauth.controller.ts
-│           ├── oauth.routes.ts
-│           ├── oauth.service.ts
-│           ├── oauth.types.ts
-│           └── providers/
-│               ├── facebook.provider.ts
-│               ├── github.provider.ts
-│               └── google.provider.ts
-├── utils/
-│   ├── email.ts              # Email templates
-│   ├── hash.ts               # Argon2 helpers
-│   └── rateLimiter.ts        # Rate limiter factory
-└── workers/
-    └── email.worker.ts       # BullMQ email worker
+
+| Code                   | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `INVALID_CREDENTIALS`  | Wrong email or password                   |
+| `EMAIL_NOT_VERIFIED`   | Email address not yet verified            |
+| `EMAIL_ALREADY_EXISTS` | Account with this email already exists    |
+| `TOKEN_EXPIRED`        | JWT or verification token has expired     |
+| `TOKEN_INVALID`        | Token is malformed or tampered with       |
+| `TOKEN_ALREADY_USED`   | One-time token was already consumed       |
+| `SESSION_REVOKED`      | Session was revoked (logged out)          |
+| `SESSION_EXPIRED`      | Session has expired                       |
+| `RATE_LIMIT_EXCEEDED`  | Too many requests                         |
+| `MFA_REQUIRED`         | MFA verification needed to complete login |
+| `MFA_INVALID_CODE`     | Wrong TOTP code or backup code            |
+| `MFA_NOT_SETUP`        | MFA is not set up for this account        |
+| `VALIDATION_FAILED`    | Request body failed Zod validation        |
+
+You can catch these in your frontend:
+
+```ts
+if (error.errorCode === "EMAIL_NOT_VERIFIED") {
+  showResendVerificationUI();
+}
 ```
 
 ---
 
 ## Environment Variables
 
-See [.env.example](.env.example) for the full list. Key variables:
+Create a `.env` file with the following variables. All JWT/MFA secrets should be random 64-character hex strings.
 
-| Variable                                   | Required | Description                           |
-| ------------------------------------------ | -------- | ------------------------------------- |
-| `DATABASE_URL`                             | Yes      | PostgreSQL connection string          |
-| `REDIS_HOST` / `REDIS_PORT`                | Yes      | Redis connection                      |
-| `ACCESS_TOKEN_SECRET`                      | Yes      | JWT signing key for access tokens     |
-| `REFRESH_TOKEN_SECRET`                     | Yes      | JWT signing key for refresh tokens    |
-| `MFA_ENCRYPTION_KEY`                       | Yes      | 64-char hex string for AES-256-GCM    |
-| `EMAIL_HOST` / `EMAIL_USER` / `EMAIL_PASS` | Yes      | SMTP credentials                      |
-| `APP_URL`                                  | Yes      | Backend URL (used in OAuth redirects) |
-| `FRONTEND_URL`                             | No       | Frontend URL (for CORS + redirects)   |
-| `GOOGLE_CLIENT_ID` / `SECRET`              | No       | Google OAuth credentials              |
-| `GITHUB_CLIENT_ID` / `SECRET`              | No       | GitHub OAuth credentials              |
-| `FACEBOOK_CLIENT_ID` / `SECRET`            | No       | Facebook OAuth credentials            |
+| Variable                    | Required | Default                 | Description                                   |
+| --------------------------- | -------- | ----------------------- | --------------------------------------------- |
+| `DATABASE_URL`              | Yes      | —                       | PostgreSQL connection string                  |
+| `REDIS_HOST`                | Yes      | `localhost`             | Redis host                                    |
+| `REDIS_PORT`                | Yes      | `6379`                  | Redis port                                    |
+| `PORT`                      | No       | `5000`                  | Server port                                   |
+| `NODE_ENV`                  | No       | `development`           | `development` / `production` / `test`         |
+| `ACCESS_TOKEN_SECRET`       | Yes      | —                       | JWT signing key for access tokens             |
+| `REFRESH_TOKEN_SECRET`      | Yes      | —                       | JWT signing key for refresh tokens            |
+| `VERIFY_EMAIL_TOKEN_SECRET` | Yes      | —                       | JWT key for email verification tokens         |
+| `FORGOT_PSWD_TOKEN_SECRET`  | Yes      | —                       | JWT key for forgot password tokens            |
+| `RESET_PSWD_TOKEN_SECRET`   | Yes      | —                       | JWT key for reset password tokens             |
+| `MFA_ENCRYPTION_KEY`        | Yes      | —                       | 64-char hex string for AES-256-GCM encryption |
+| `MFA_TEMP_TOKEN_SECRET`     | Yes      | —                       | JWT key for temporary MFA tokens              |
+| `EMAIL_HOST`                | Yes      | `smtp.gmail.com`        | SMTP server hostname                          |
+| `EMAIL_PORT`                | Yes      | `465`                   | SMTP server port                              |
+| `EMAIL_USER`                | Yes      | —                       | SMTP username/email                           |
+| `EMAIL_PASS`                | Yes      | —                       | SMTP password or app password                 |
+| `APP_URL`                   | Yes      | `http://localhost:5000` | Backend URL (used in OAuth redirects)         |
+| `FRONTEND_URL`              | No       | —                       | Frontend URL (for CORS + redirects)           |
+| `GOOGLE_CLIENT_ID`          | No       | —                       | Google OAuth client ID                        |
+| `GOOGLE_CLIENT_SECRET`      | No       | —                       | Google OAuth client secret                    |
+| `GOOGLE_REDIRECT_URI`       | No       | —                       | Google OAuth callback URL                     |
+| `GITHUB_CLIENT_ID`          | No       | —                       | GitHub OAuth client ID                        |
+| `GITHUB_CLIENT_SECRET`      | No       | —                       | GitHub OAuth client secret                    |
+| `GITHUB_REDIRECT_URI`       | No       | —                       | GitHub OAuth callback URL                     |
+| `FACEBOOK_CLIENT_ID`        | No       | —                       | Facebook OAuth client ID                      |
+| `FACEBOOK_CLIENT_SECRET`    | No       | —                       | Facebook OAuth client secret                  |
+| `FACEBOOK_REDIRECT_URI`     | No       | —                       | Facebook OAuth callback URL                   |
 
----
-
-## Scripts
+Generate a secret:
 
 ```bash
-npm run dev            # Start dev server (Bun watch mode)
-npm run worker         # Start email background worker
-npm run db:migrate     # Run Prisma migrations
-npm run db:generate    # Regenerate Prisma client
-npm run db:studio      # Open Prisma Studio
-npm run test           # Run tests
-npm run test:watch     # Run tests in watch mode
-npm run test:coverage  # Run tests with coverage
-npm run lint           # Lint with ESLint
-npm run lint:fix       # Auto-fix lint issues
-npm run format         # Format with Prettier
-npm run format:check   # Check formatting
-npm run typecheck      # TypeScript type checking
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
 
-## Authentication Flow
+## Authentication Flows
 
 ### Email / Password
 
 ```
-1. POST /auth/register     → Account created, verification email sent
-2. POST /auth/verify-email → Email verified
-3. POST /auth/login        → Returns accessToken + refreshToken (cookie)
-4. POST /auth/refresh-token  → Rotate tokens (uses cookie)
+POST /auth/register      → Account created, verification email sent
+POST /auth/verify-email   → Email verified
+POST /auth/login          → Returns accessToken + refreshToken (HTTP-only cookie)
+POST /auth/refresh-token  → Rotate tokens (reads cookie)
+POST /auth/logout         → Revoke current session
 ```
 
 ### OAuth
 
 ```
-1. GET  /auth/oauth/google       → Returns authorization URL
-2. User redirects to Google       → Grants permission
-3. GET  /auth/oauth/callback/google → Receives code, stores tokens in Redis
-4. Frontend receives one-time code via redirect query param
-5. POST /auth/oauth/exchange      → Exchange code for accessToken + refreshToken
+GET  /auth/oauth/google        → Authorization URL
+  → User redirects to Google   → Grants permission
+GET  /auth/oauth/callback/google → One-time code stored in Redis
+  → Frontend receives code via redirect
+POST /auth/oauth/exchange       → Exchange code → accessToken + refreshToken
 ```
 
 ### MFA (TOTP)
 
 ```
-1. POST /auth/mfa/setup   → Returns QR code + backup codes
-2. User scans QR in authenticator app
-3. POST /auth/mfa/verify  → Verify code, enable MFA
+# Setup
+POST /auth/mfa/setup    → QR code (base64) + backup codes
+  → User scans QR in authenticator app
+POST /auth/mfa/verify   → Verify TOTP code → MFA enabled
 
-On next login:
-4. POST /auth/login        → Returns mfaTempToken (no session yet)
-5. POST /auth/mfa/challenge → Verify TOTP/backup code → full session
+# Login with MFA
+POST /auth/login         → { mfaRequired: true, tempToken: "..." }
+POST /auth/mfa/challenge → Verify TOTP → full session tokens
 ```
 
 ---
 
 ## Security
 
-- **Passwords** — Hashed with Argon2id (memory-hard, GPU-resistant)
-- **MFA Secrets** — Encrypted at rest with AES-256-GCM (not stored as plaintext)
-- **Refresh Tokens** — SHA-256 hashed before storage; sent as HTTP-only cookies
-- **OAuth** — One-time code exchange via Redis (tokens never appear in URLs)
-- **Rate Limiting** — Per-route limits to prevent brute-force attacks
-- **CORS** — Strict origin whitelist (no wildcard, no prefix matching)
-- **Input Validation** — All endpoints validated with Zod schemas
-- **Timing-Safe** — Password comparison uses constant-time comparison via Argon2
-- **Email Verification** — Required before account is fully active
+AuthHero is built with security as a first-class concern:
+
+- **Argon2id** — Memory-hard password hashing (GPU-resistant)
+- **AES-256-GCM** — MFA secrets encrypted at rest (never stored as plaintext)
+- **SHA-256 hashed refresh tokens** — Stored hashed in the database, sent as HTTP-only secure cookies
+- **One-time OAuth codes** — Tokens never appear in URLs; exchanged via Redis with short TTLs
+- **Per-route rate limiting** — Prevents brute-force attacks on login, register, password reset
+- **Strict CORS** — Origin whitelist (no wildcards, no prefix matching)
+- **Zod validation** — Every request body validated before processing
+- **Constant-time comparison** — Password verification via Argon2's built-in timing-safe compare
+- **Helmet** — Security headers (CSP, HSTS, X-Content-Type-Options, etc.)
+
+---
+
+## Boilerplate Mode
+
+Want to fork and customize instead of using it as a package? Use the scaffolding CLI:
+
+```bash
+npx create-authhero my-app
+cd my-app
+npm install
+cp .env.example .env
+# Fill in your .env values
+npx prisma migrate dev
+npm run dev
+```
+
+This clones the full source code so you can modify anything — routes, validation, email templates, database schema, etc.
+
+---
+
+## Tech Stack
+
+| Layer         | Technology                                   |
+| ------------- | -------------------------------------------- |
+| Runtime       | Node.js >= 18                                |
+| Framework     | Express 5                                    |
+| Database      | PostgreSQL (Prisma 7 + `@prisma/adapter-pg`) |
+| Cache / Queue | Redis (ioredis) + BullMQ                     |
+| Auth          | JWT (jsonwebtoken) + Argon2                  |
+| MFA           | otplib (TOTP) + QRCode                       |
+| Validation    | Zod 4                                        |
+| Email         | Nodemailer                                   |
+| Logging       | Pino                                         |
 
 ---
 
@@ -292,7 +448,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security Policy
 
-If you find a security vulnerability, please see [SECURITY.md](SECURITY.md) for responsible disclosure instructions.
+Found a vulnerability? See [SECURITY.md](SECURITY.md) for responsible disclosure instructions.
 
 ## License
 
