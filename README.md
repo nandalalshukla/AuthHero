@@ -3,12 +3,12 @@
 Drop-in authentication for Express apps. Email/password, OAuth, MFA — all production-ready, fully typed, and secured out of the box.
 
 ```bash
-npm install authhero express
+npm install @nandalalshukla/auth-hero express
 ```
 
 ```ts
 import "dotenv/config";
-import { createAuthHero } from "authhero";
+import { createAuthHero } from "@nandalalshukla/auth-hero";
 
 const auth = await createAuthHero();
 auth.app.listen(3000);
@@ -38,7 +38,6 @@ That's it. You now have register, login, email verification, password reset, OAu
 - [Environment Variables](#environment-variables)
 - [Authentication Flows](#authentication-flows)
 - [Security](#security)
-- [Boilerplate Mode](#boilerplate-mode)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -55,7 +54,7 @@ That's it. You now have register, login, email verification, password reset, OAu
 ## Installation
 
 ```bash
-npm install authhero express
+npm install @nandalalshukla/auth-hero express
 ```
 
 ---
@@ -65,14 +64,14 @@ npm install authhero express
 ### 1. Copy the Prisma schema and run migrations
 
 ```bash
-cp node_modules/authhero/prisma/schema.prisma prisma/schema.prisma
+cp node_modules/@nandalalshukla/auth-hero/prisma/schema.prisma prisma/schema.prisma
 npx prisma migrate dev --name init
 ```
 
 ### 2. Create your `.env` file
 
 ```bash
-cp node_modules/authhero/.env.example .env
+cp node_modules/@nandalalshukla/auth-hero/.env.example .env
 ```
 
 ### 3. Generate secrets
@@ -87,7 +86,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ```ts
 import "dotenv/config";
-import { createAuthHero } from "authhero";
+import { createAuthHero } from "@nandalalshukla/auth-hero";
 
 const auth = await createAuthHero();
 auth.app.listen(3000, () => console.log("Running on http://localhost:3000"));
@@ -110,7 +109,7 @@ Use the built-in Express app. It comes with Helmet, CORS, cookie parsing, rate l
 
 ```ts
 import "dotenv/config";
-import { createAuthHero } from "authhero";
+import { createAuthHero } from "@nandalalshukla/auth-hero";
 
 const auth = await createAuthHero();
 
@@ -127,7 +126,7 @@ Already have an Express app? Just mount the route modules:
 import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
-import { createAuthHero } from "authhero";
+import { createAuthHero } from "@nandalalshukla/auth-hero";
 
 const app = express();
 app.use(express.json());
@@ -154,7 +153,7 @@ app.listen(3000);
 Use `auth.authenticate` to guard any route with JWT authentication. The user's ID and session ID are available on `req.user`.
 
 ```ts
-import { createAuthHero } from "authhero";
+import { createAuthHero } from "@nandalalshukla/auth-hero";
 
 const auth = await createAuthHero();
 
@@ -410,10 +409,10 @@ AuthHero is built with security as a first-class concern:
 
 ## Boilerplate Mode
 
-Want to fork and customize instead of using it as a package? Use the scaffolding CLI:
+Want to fork and customize instead of using it as a package? Clone the repo directly:
 
 ```bash
-npx create-authhero my-app
+git clone https://github.com/nandalalshukla/authhero.git my-app
 cd my-app
 npm install
 cp .env.example .env
@@ -422,7 +421,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-This clones the full source code so you can modify anything — routes, validation, email templates, database schema, etc.
+This gives you the full source code so you can modify anything — routes, validation, email templates, database schema, etc.
 
 ---
 
