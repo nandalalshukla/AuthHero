@@ -16,8 +16,8 @@ import { refreshTokenCookieOptions } from "../../config/cookies";
 import { requireAuth } from "../../utils/requireAuth";
 
 export const registerController = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  const { user, verificationToken } = await registerUser(email, password);
+  const { fullname,email, password } = req.body;
+  const { user, verificationToken } = await registerUser(fullname,email, password);
 
   // Queue verification email (async via BullMQ — doesn't block the response)
   await emailQueue.add("sendVerificationEmail", {

@@ -34,6 +34,7 @@ const getDummyHash = async (): Promise<string> => {
 };
 
 export const registerUser = async (
+  fullname: string,
   email: string,
   password: string,
 ): Promise<registerResponse> => {
@@ -53,9 +54,10 @@ export const registerUser = async (
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { email, passwordHash },
+      data: { fullname, email, passwordHash},
       select: {
         id: true,
+        fullname: true,
         email: true,
         createdAt: true,
         emailVerified: true,

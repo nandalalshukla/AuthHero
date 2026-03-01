@@ -19,6 +19,7 @@ const passwordSchema = z
   .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character");
 
 export const registerSchema = z.object({
+  fullname: z.string().min(1, "Full name is required").trim(),
   email: z.string().email("Invalid email format").toLowerCase().trim(),
   password: passwordSchema,
 });

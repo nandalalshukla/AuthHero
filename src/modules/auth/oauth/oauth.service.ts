@@ -68,6 +68,7 @@ export class OAuthService {
       // Create a brand new user for a new social login
       return await tx.user.create({
         data: {
+          fullname: "", // Optional: you can fetch this from the provider if available
           email: profile.email,
           passwordHash: null, // OAuth-only users have no password
           emailVerified: true,

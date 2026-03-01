@@ -22,7 +22,7 @@ const envSchema = z.object({
   EMAIL_PASS: z.string().min(6),
 
   // Frontend
-  APP_URL: z.string().url().default("http://localhost:3000"),
+  APP_URL: z.string().url().default("http://localhost:8080"),
   FRONTEND_URL: z.string().url().optional(),
 
   // Redis

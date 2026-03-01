@@ -26,6 +26,27 @@ export class OAuthController {
   static async getAuthUrl(req: Request, res: Response) {
     const { provider } = req.params as { provider: SupportedProvider };
 
+    // Validate that this provider's env vars are configured
+    const configMap: Record<
+      SupportedProvider,
+      { clientId?: string; redirectUri?: string }
+    > = {
+      google: { clientId: env.GOOGLE_CLIENT_ID, redirectUri: env.GOOGLE_REDIRECT_URI },
+      github: { clientId: env.GITHUB_CLIENT_ID, redirectUri: env.GITHUB_REDIRECT_URI },
+      facebook: {
+        clientId: env.FACEBOOK_CLIENT_ID,
+        redirectUri: env.FACEBOOK_REDIRECT_URI,
+      },
+    };
+
+    const config = configMap[provider];
+    if (!config || !config.clientId || !config.redirectUri) {
+      throw new AppError(
+        BAD_REQUEST,
+        `OAuth provider "${provider}" is not configured. Check your environment variables.`,
+      );
+    }
+
     const state = crypto.randomBytes(TOKEN_LENGTH.OAUTH_STATE).toString("hex");
 
     // Store state in a short-lived httpOnly cookie
@@ -37,9 +58,9 @@ export class OAuthController {
     });
 
     const urls: Record<SupportedProvider, string> = {
-      google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${env.GOOGLE_REDIRECT_URI}&response_type=code&scope=email+profile&state=${state}`,
-      github: `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${env.GITHUB_REDIRECT_URI}&scope=user:email&state=${state}`,
-      facebook: `https://www.facebook.com/v12.0/dialog/oauth?client_id=${env.FACEBOOK_CLIENT_ID}&redirect_uri=${env.FACEBOOK_REDIRECT_URI}&scope=email&state=${state}`,
+      google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GOOGLE_REDIRECT_URI ?? "")}&response_type=code&scope=email+profile&state=${state}`,
+      github: `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GITHUB_REDIRECT_URI ?? "")}&scope=user:email&state=${state}`,
+      facebook: `https://www.facebook.com/v12.0/dialog/oauth?client_id=${env.FACEBOOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.FACEBOOK_REDIRECT_URI ?? "")}&scope=email&state=${state}`,
     };
 
     const url = urls[provider];
@@ -49,7 +70,7 @@ export class OAuthController {
         .json({ success: false, message: `Unsupported provider: ${provider}` });
     }
 
-    return res.json({ success: true, data: { url } });
+    return res.redirect(url);
   }
 
   /**

@@ -8,6 +8,7 @@ declare module "express-serve-static-core" {
 }
 export interface PublicUser {
   id: string;
+  fullname: string;
   email: string;
   emailVerified: boolean;
   mfaEnabled: boolean;
