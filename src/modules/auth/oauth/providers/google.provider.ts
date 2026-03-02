@@ -37,20 +37,21 @@ export class GoogleProvider implements OAuthProvider {
         grant_type: "authorization_code",
       });
 
-      const accessToken = tokenResponse.data.access_token;
-      if (!accessToken) {
+      const {access_token, id_token} = tokenResponse.data;
+      if (!access_token) {
         throw new AppError(BAD_REQUEST, "Failed to obtain Google access token");
       }
 
       // 2. Fetch user profile using the access token
       const { data: profile } = await axios.get(GoogleProvider.USERINFO_URL, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${access_token}` },
       });
 
       return {
         providerUserId: profile.id,
         email: profile.email,
         provider: "google",
+        oidcToken: id_token,
       };
     } catch (error) {
       if (error instanceof AppError) throw error;

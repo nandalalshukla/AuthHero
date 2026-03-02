@@ -58,7 +58,7 @@ export class OAuthController {
     });
 
     const urls: Record<SupportedProvider, string> = {
-      google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GOOGLE_REDIRECT_URI ?? "")}&response_type=code&scope=email+profile&state=${state}`,
+      google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GOOGLE_REDIRECT_URI ?? "")}&response_type=code&scope=openid%20email%20profile&state=${state}`,
       github: `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GITHUB_REDIRECT_URI ?? "")}&scope=user:email&state=${state}`,
       facebook: `https://www.facebook.com/v12.0/dialog/oauth?client_id=${env.FACEBOOK_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.FACEBOOK_REDIRECT_URI ?? "")}&scope=email&state=${state}`,
     };
@@ -192,7 +192,7 @@ export class OAuthController {
     return res.status(OK).json({
       success: true,
       message: "OAuth login successful",
-      data: { mfaRequired: false, accessToken: parsed.accessToken },
+      data: { mfaRequired: false, accessToken: parsed.accessToken,  },
     });
   }
 }

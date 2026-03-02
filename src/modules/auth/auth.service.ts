@@ -54,7 +54,7 @@ export const registerUser = async (
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { fullname, email, passwordHash},
+      data: { fullname, email, passwordHash },
       select: {
         id: true,
         fullname: true,
@@ -242,6 +242,26 @@ export const loginUser = async (
     accessToken,
     refreshToken,
   };
+};
+
+export const getMe = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      fullname: true,
+      email: true,
+      emailVerified: true,
+      mfaEnabled: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError(UNAUTHORIZED, "User not found");
+  }
+
+  return user;
 };
 
 export const refreshSession = async (

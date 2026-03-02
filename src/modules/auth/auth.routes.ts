@@ -9,6 +9,7 @@ import {
   logoutAllController,
   logoutController,
   refreshController,
+  meController,
 } from "./auth.controller";
 import { asyncHandler } from "../../lib/asyncHandler";
 import { validate } from "../../middlewares/validate.middleware";
@@ -46,6 +47,8 @@ router.post(
   validate(loginSchema),
   asyncHandler(loginController),
 );
+
+router.get("/me", authenticate, asyncHandler(meController));
 
 router.post(
   "/forgot-password",

@@ -12,6 +12,8 @@ export interface OAuthUserProfile {
 
   /** The name of the provider (e.g., 'google', 'github') */
   provider: string;
+  /** Optional: OIDC ID token for providers that support OpenID Connect */
+  oidcToken?: string;
 }
 
 /**
