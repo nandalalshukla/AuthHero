@@ -1,7 +1,18 @@
 import { Router } from "express";
-import { initiateMFA, verifyMFA, challengeMFA, disableMFA } from "./mfa.controller";
+import {
+  initiateMFA,
+  verifyMFA,
+  challengeMFA,
+  disableMFA,
+  regenerateBackupCodes,
+} from "./mfa.controller";
 import { validate } from "../../../middlewares/validate.middleware";
-import { verifyMFASchema, challengeMFASchema, disableMFASchema } from "./mfa.validation";
+import {
+  verifyMFASchema,
+  challengeMFASchema,
+  disableMFASchema,
+  regenerateBackupCodesSchema,
+} from "./mfa.validation";
 import { asyncHandler } from "../../../lib/asyncHandler";
 import { authenticate } from "../../../middlewares/auth.middleware";
 import { mfaChallengeRateLimiter } from "../../../middlewares/rateLimiter.middleware";
@@ -27,6 +38,14 @@ router.post(
   authenticate,
   validate(disableMFASchema),
   asyncHandler(disableMFA),
+);
+
+// Regenerate backup codes requires authentication + current TOTP code
+router.post(
+  "/regenerate-backup-codes",
+  authenticate,
+  validate(regenerateBackupCodesSchema),
+  asyncHandler(regenerateBackupCodes),
 );
 
 export default router;

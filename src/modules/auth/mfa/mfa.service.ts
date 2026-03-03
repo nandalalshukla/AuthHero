@@ -48,7 +48,7 @@ export class MFAService {
       },
     });
 
-    return { qrCode, backupCodes };
+    return { secret, qrCode, backupCodes };
   }
 
   async verifyAndEnable(userId: string, token: string) {
@@ -134,6 +134,38 @@ export class MFAService {
 
     // MFA passed — create a real session (same as normal login)
     return await createSession(userId, userAgent, ipAddress);
+  }
+
+  /**
+   * Regenerates backup codes for a user with MFA enabled.
+   * Requires a valid TOTP code for verification.
+   * Returns the new plaintext backup codes (shown once, then only stored as hashes).
+   */
+  async regenerateBackupCodes(userId: string, code: string) {
+    const record = await prisma.mFASecret.findUnique({
+      where: { userId },
+    });
+
+    if (!record || !record.verified)
+      throw new AppError(BAD_REQUEST, "MFA is not enabled", AppErrorCode.MFANotSetup);
+
+    const valid = await verifyTOTP(code, record.secretHash);
+    if (!valid)
+      throw new AppError(
+        BAD_REQUEST,
+        "Invalid MFA code. Please enter the current code from your authenticator app.",
+        AppErrorCode.MFAInvalidCode,
+      );
+
+    const backupCodes = generateBackupCodes();
+    const hashedCodes = await Promise.all(backupCodes.map(hashBackupCode));
+
+    await prisma.mFASecret.update({
+      where: { userId },
+      data: { backupCodes: hashedCodes },
+    });
+
+    return { backupCodes };
   }
 
   /**

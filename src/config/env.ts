@@ -11,9 +11,6 @@ const envSchema = z.object({
   // JWT Secrets
   ACCESS_TOKEN_SECRET: z.string().min(10),
   REFRESH_TOKEN_SECRET: z.string().min(10),
-  VERIFY_EMAIL_TOKEN_SECRET: z.string().min(10),
-  FORGOT_PSWD_TOKEN_SECRET: z.string().min(10),
-  RESET_PSWD_TOKEN_SECRET: z.string().min(10),
 
   // Email
   EMAIL_HOST: z.string().default("smtp.gmail.com"),

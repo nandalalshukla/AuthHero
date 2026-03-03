@@ -9,7 +9,10 @@ export interface OAuthUserProfile {
 
   /** The user's primary email address */
   email: string;
+  /** Optional: The user's full name (if provided by the provider) */
+  fullname: string;
 
+  profilePictureUrl?: string; // Optional: URL to the user's profile picture
   /** The name of the provider (e.g., 'google', 'github') */
   provider: string;
   /** Optional: OIDC ID token for providers that support OpenID Connect */
@@ -33,13 +36,3 @@ export interface OAuthProvider {
  * Using a union type prevents typos in your service and controller.
  */
 export type SupportedProvider = "google" | "github" | "facebook";
-
-/**
- * Optional: Configuration interface if you want to make
- * your providers even more dynamic.
- */
-export interface ProviderConfig {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-}

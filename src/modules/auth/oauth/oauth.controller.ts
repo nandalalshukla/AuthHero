@@ -52,7 +52,7 @@ export class OAuthController {
     // Store state in a short-lived httpOnly cookie
     res.cookie(`${provider}_auth_state`, state, {
       httpOnly: true,
-      secure: true,
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: TOKEN_EXPIRY.OAUTH_STATE_MS,
     });
@@ -87,21 +87,20 @@ export class OAuthController {
   static async handleCallback(req: Request, res: Response) {
     const { provider } = req.params as { provider: SupportedProvider };
     const { code, state } = req.query;
+    const frontendUrl = env.FRONTEND_URL || env.APP_URL;
 
     // 1. CSRF check: compare state from cookie with state from query
     const savedState = req.cookies?.[`${provider}_auth_state`];
     if (!state || state !== savedState) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid state parameter. Possible CSRF attack.",
-      });
+      return res.redirect(
+        `${frontendUrl}/login?error=${encodeURIComponent("Invalid state parameter. Please try again.")}`,
+      );
     }
 
     if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: "Authorization code missing.",
-      });
+      return res.redirect(
+        `${frontendUrl}/login?error=${encodeURIComponent("Authorization code missing.")}`,
+      );
     }
 
     // 2. Exchange code for user profile and sync with DB
@@ -109,8 +108,6 @@ export class OAuthController {
 
     // Clear the CSRF state cookie (no longer needed)
     res.clearCookie(`${provider}_auth_state`);
-
-    const frontendUrl = env.FRONTEND_URL || env.APP_URL;
 
     // 3. If user has MFA enabled, issue a temp token via one-time code
     if (user.mfaEnabled) {
@@ -192,7 +189,7 @@ export class OAuthController {
     return res.status(OK).json({
       success: true,
       message: "OAuth login successful",
-      data: { mfaRequired: false, accessToken: parsed.accessToken,  },
+      data: { mfaRequired: false, accessToken: parsed.accessToken },
     });
   }
 }

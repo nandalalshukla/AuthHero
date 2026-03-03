@@ -10,6 +10,9 @@ import {
   logoutController,
   refreshController,
   meController,
+  deactivateAccountController,
+  reactivateAccountController,
+  deleteAccountController,
 } from "./auth.controller";
 import { asyncHandler } from "../../lib/asyncHandler";
 import { validate } from "../../middlewares/validate.middleware";
@@ -20,6 +23,9 @@ import {
   resetPasswordSchema,
   forgotPasswordSchema,
   changePasswordSchema,
+  deactivateAccountSchema,
+  deleteAccountSchema,
+  reactivateAccountSchema,
 } from "./auth.validation";
 import {
   loginRateLimiter,
@@ -29,6 +35,7 @@ import {
   resetPasswordRateLimiter,
   refreshRateLimiter,
   changePasswordRateLimiter,
+  accountActionRateLimiter,
 } from "../../middlewares/rateLimiter.middleware";
 import { authenticate } from "../../middlewares/auth.middleware";
 
@@ -81,6 +88,29 @@ router.post(
   changePasswordRateLimiter,
   validate(changePasswordSchema),
   asyncHandler(changePasswordController),
+);
+
+router.post(
+  "/deactivate",
+  authenticate,
+  accountActionRateLimiter,
+  validate(deactivateAccountSchema),
+  asyncHandler(deactivateAccountController),
+);
+
+router.post(
+  "/reactivate",
+  accountActionRateLimiter,
+  validate(reactivateAccountSchema),
+  asyncHandler(reactivateAccountController),
+);
+
+router.post(
+  "/delete-account",
+  authenticate,
+  accountActionRateLimiter,
+  validate(deleteAccountSchema),
+  asyncHandler(deleteAccountController),
 );
 
 export default router;

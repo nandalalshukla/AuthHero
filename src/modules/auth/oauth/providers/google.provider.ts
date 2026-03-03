@@ -37,7 +37,7 @@ export class GoogleProvider implements OAuthProvider {
         grant_type: "authorization_code",
       });
 
-      const {access_token, id_token} = tokenResponse.data;
+      const { access_token, id_token } = tokenResponse.data;
       if (!access_token) {
         throw new AppError(BAD_REQUEST, "Failed to obtain Google access token");
       }
@@ -50,6 +50,8 @@ export class GoogleProvider implements OAuthProvider {
       return {
         providerUserId: profile.id,
         email: profile.email,
+        fullname: profile.name,
+        profilePictureUrl: profile.picture,
         provider: "google",
         oidcToken: id_token,
       };

@@ -3,7 +3,13 @@ import { logger } from "../../lib/logger";
 import { addDays, addMinutes } from "date-fns";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { AppError, AppErrorCode } from "../../lib/AppError";
-import { CONFLICT, UNAUTHORIZED, BAD_REQUEST, FORBIDDEN } from "../../config/http";
+import {
+  CONFLICT,
+  UNAUTHORIZED,
+  BAD_REQUEST,
+  FORBIDDEN,
+  NOT_FOUND,
+} from "../../config/http";
 import { env } from "../../config/env";
 import { sendEmail } from "../../utils/email";
 import {
@@ -15,10 +21,10 @@ import {
 import { createSession } from "../../lib/session";
 import { TOKEN_LENGTH, TOKEN_EXPIRY } from "../../config/constants";
 import type {
-  loginResponse,
-  loginMFAResponse,
-  registerResponse,
-  refreshResponse,
+  LoginResponse,
+  LoginMFAResponse,
+  RegisterResponse,
+  RefreshResponse,
 } from "./auth.types";
 
 // Pre-compute a dummy argon2 hash for timing-attack protection.
@@ -37,7 +43,7 @@ export const registerUser = async (
   fullname: string,
   email: string,
   password: string,
-): Promise<registerResponse> => {
+): Promise<RegisterResponse> => {
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
@@ -80,17 +86,29 @@ export const registerUser = async (
   };
 };
 
+// ─── Email template helpers ────────────────────────────────────────────
+// Centralized templates so changes apply everywhere.
+
+function buildVerificationEmailHtml(verificationUrl: string): string {
+  return `
+    <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
+    <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
+    <p>This link will expire in 10 minutes.</p>
+  `;
+}
+
+function buildFrontendUrl(path: string): string {
+  const base = env.FRONTEND_URL || env.APP_URL;
+  return `${base}${path}`;
+}
+
 export const sendVerificationEmail = async (email: string, token: string) => {
-  const verificationUrl = `${env.APP_URL}/verify-email?token=${token}`;
+  const verificationUrl = buildFrontendUrl(`/verify-email?token=${token}`);
   logger.debug({ email }, "Sending verification email");
   await sendEmail(
     email,
     "Verify Your Email",
-    `
-    <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
-    <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
-    <p>This link will expire in 10 minutes.</p>
-  `,
+    buildVerificationEmailHtml(verificationUrl),
   );
 };
 
@@ -120,16 +138,11 @@ export const resendVerificationEmail = async (userId: string, email: string) => 
     },
   });
 
-  const verificationUrl = `${env.APP_URL}/verify-email?token=${rawToken}`;
-
+  const verificationUrl = buildFrontendUrl(`/verify-email?token=${rawToken}`);
   await sendEmail(
     email,
     "Verify Your Email",
-    `
-    <p>Welcome to AuthHero! Please verify your email by clicking the link below:</p>
-    <a href="${verificationUrl}" style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:4px;">Verify Email</a>
-    <p>This link will expire in 10 minutes.</p>
-  `,
+    buildVerificationEmailHtml(verificationUrl),
   );
 };
 
@@ -174,7 +187,7 @@ export const loginUser = async (
   password: string,
   userAgent?: string,
   ipAddress?: string,
-): Promise<loginResponse | loginMFAResponse> => {
+): Promise<LoginResponse | LoginMFAResponse> => {
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
@@ -182,6 +195,8 @@ export const loginUser = async (
       passwordHash: true,
       emailVerified: true,
       mfaEnabled: true,
+      deactivatedAt: true,
+      deletedAt: true,
     },
   });
 
@@ -211,6 +226,24 @@ export const loginUser = async (
       UNAUTHORIZED,
       "Invalid credentials",
       AppErrorCode.InvalidCredentials,
+    );
+  }
+
+  // Block deleted accounts — permanent, no way back
+  if (user.deletedAt) {
+    throw new AppError(
+      FORBIDDEN,
+      "This account has been deleted.",
+      AppErrorCode.AccountDeleted,
+    );
+  }
+
+  // Block deactivated accounts — user must reactivate first
+  if (user.deactivatedAt) {
+    throw new AppError(
+      FORBIDDEN,
+      "This account is deactivated. Please reactivate your account first.",
+      AppErrorCode.AccountDeactivated,
     );
   }
 
@@ -258,7 +291,7 @@ export const getMe = async (userId: string) => {
   });
 
   if (!user) {
-    throw new AppError(UNAUTHORIZED, "User not found");
+    throw new AppError(NOT_FOUND, "User not found");
   }
 
   return user;
@@ -268,7 +301,7 @@ export const refreshSession = async (
   refreshToken: string,
   userAgent?: string,
   ipAddress?: string,
-): Promise<refreshResponse> => {
+): Promise<RefreshResponse> => {
   const refreshTokenHash = hashRandomToken(refreshToken);
 
   const session = await prisma.session.findUnique({
@@ -380,7 +413,7 @@ export const forgotPassword = async (email: string) => {
       expiresAt,
     },
   });
-  const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+  const resetUrl = buildFrontendUrl(`/reset-password?token=${token}`);
 
   // Queue the email via BullMQ instead of sending synchronously.
   // This makes response time constant regardless of whether the user exists,
@@ -414,6 +447,12 @@ export const resetPassword = async (token: string, newPassword: string) => {
       where: { id: record.id },
       data: { usedAt: new Date() },
     }),
+    // Revoke all sessions — a password reset means the account may have been
+    // compromised, so we force every device to re-authenticate.
+    prisma.session.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
   ]);
   return { message: "Password reset successfully" };
 };
@@ -422,6 +461,7 @@ export const changePassword = async (
   userId: string,
   currentPassword: string,
   newPassword: string,
+  currentSessionId?: string,
 ) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -441,9 +481,165 @@ export const changePassword = async (
     throw new AppError(UNAUTHORIZED, "Current password is incorrect");
   }
   const newPasswordHash = await hashPassword(newPassword);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash: newPasswordHash },
-  });
+
+  // Update password and revoke all other sessions in one transaction.
+  // Keep the current session alive so the user isn't logged out of the
+  // device they changed their password from.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    }),
+    prisma.session.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(currentSessionId ? { id: { not: currentSessionId } } : {}),
+      },
+      data: { revokedAt: new Date() },
+    }),
+  ]);
+
   return { message: "Password changed successfully" };
+};
+
+// ─── Account Deactivation ─────────────────────────────────────────────
+// Soft-deactivates the account. The user can reactivate later by logging
+// in with correct credentials at the dedicated reactivation endpoint.
+// All sessions are revoked immediately.
+
+export const deactivateAccount = async (userId: string, password: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { passwordHash: true, deactivatedAt: true },
+  });
+
+  if (!user) {
+    throw new AppError(NOT_FOUND, "User not found");
+  }
+
+  if (user.deactivatedAt) {
+    throw new AppError(BAD_REQUEST, "Account is already deactivated");
+  }
+
+  // OAuth-only users don't have a password — they must set one first,
+  // or we could allow them without password. For safety, we require a password.
+  if (!user.passwordHash) {
+    throw new AppError(
+      BAD_REQUEST,
+      "This account uses social login and has no password. Set a password first before deactivating.",
+    );
+  }
+
+  const isValid = await verifyPassword(password, user.passwordHash);
+  if (!isValid) {
+    throw new AppError(UNAUTHORIZED, "Incorrect password", AppErrorCode.InvalidCredentials);
+  }
+
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { deactivatedAt: now },
+    }),
+    // Revoke all sessions so the user is logged out everywhere
+    prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+  ]);
+
+  return { message: "Account deactivated successfully" };
+};
+
+// ─── Account Reactivation ─────────────────────────────────────────────
+// Allows a previously deactivated user to restore their account.
+// Requires correct email + password. Does NOT create a session — the
+// user must log in normally after reactivation.
+
+export const reactivateAccount = async (email: string, password: string) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, passwordHash: true, deactivatedAt: true, deletedAt: true },
+  });
+
+  // Timing-attack protection: always run argon2 regardless of user existence
+  const hashToCompare = user?.passwordHash ?? (await getDummyHash());
+  const isValid = await verifyPassword(password, hashToCompare);
+
+  if (!user || !user.passwordHash || !isValid) {
+    throw new AppError(
+      UNAUTHORIZED,
+      "Invalid credentials",
+      AppErrorCode.InvalidCredentials,
+    );
+  }
+
+  if (user.deletedAt) {
+    throw new AppError(
+      FORBIDDEN,
+      "This account has been permanently deleted and cannot be reactivated.",
+      AppErrorCode.AccountDeleted,
+    );
+  }
+
+  if (!user.deactivatedAt) {
+    throw new AppError(BAD_REQUEST, "Account is not deactivated");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { deactivatedAt: null },
+  });
+
+  return { message: "Account reactivated successfully. You can now log in." };
+};
+
+// ─── Account Deletion ─────────────────────────────────────────────────
+// Soft-deletes the account by setting deletedAt. All sessions are revoked.
+// Related data (sessions, MFA, OAuth accounts) are preserved for the
+// grace period. A scheduled job can permanently purge after 30 days.
+
+export const deleteAccount = async (userId: string, password: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { passwordHash: true, deletedAt: true },
+  });
+
+  if (!user) {
+    throw new AppError(NOT_FOUND, "User not found");
+  }
+
+  if (user.deletedAt) {
+    throw new AppError(BAD_REQUEST, "Account is already marked for deletion");
+  }
+
+  if (!user.passwordHash) {
+    throw new AppError(
+      BAD_REQUEST,
+      "This account uses social login and has no password. Set a password first before deleting.",
+    );
+  }
+
+  const isValid = await verifyPassword(password, user.passwordHash);
+  if (!isValid) {
+    throw new AppError(UNAUTHORIZED, "Incorrect password", AppErrorCode.InvalidCredentials);
+  }
+
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: now, deactivatedAt: now },
+    }),
+    // Revoke all sessions
+    prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+  ]);
+
+  return { message: "Account deleted successfully" };
 };

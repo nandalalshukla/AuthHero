@@ -42,23 +42,6 @@ export function generateRandomToken(length: number) {
 export function hashRandomToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
-export function generateEmailVerifyToken(userId: string) {
-  return jwt.sign({ userId }, env.VERIFY_EMAIL_TOKEN_SECRET, {
-    expiresIn: "30m",
-  });
-}
-
-export function generateForgetPswdToken(userId: string) {
-  return jwt.sign({ userId }, env.FORGOT_PSWD_TOKEN_SECRET, {
-    expiresIn: "30m",
-  });
-}
-
-export function generateChangePswdToken(userId: string) {
-  return jwt.sign({ userId }, env.RESET_PSWD_TOKEN_SECRET, {
-    expiresIn: "35m",
-  });
-}
 
 // ── MFA Temp Token ──────────────────────────────────────────────────────
 // Short-lived token issued after credentials pass but before MFA.

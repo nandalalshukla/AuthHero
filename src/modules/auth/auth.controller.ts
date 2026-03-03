@@ -10,6 +10,9 @@ import {
   resetPassword,
   forgotPassword,
   getMe,
+  deactivateAccount,
+  reactivateAccount,
+  deleteAccount,
 } from "./auth.service";
 import { CREATED, OK, UNAUTHORIZED } from "../../config/http";
 import { emailQueue } from "../../lib/queues/email.queue";
@@ -159,10 +162,48 @@ export const changePasswordController = async (req: Request, res: Response) => {
   requireAuth(req);
 
   const { currentPassword, newPassword } = req.body;
-  await changePassword(req.user.userId, currentPassword, newPassword);
+  await changePassword(req.user.userId, currentPassword, newPassword, req.user.sessionId);
 
   return res.status(OK).json({
     success: true,
     message: "Password changed successfully",
+  });
+};
+
+export const deactivateAccountController = async (req: Request, res: Response) => {
+  requireAuth(req);
+
+  const { password } = req.body;
+  const result = await deactivateAccount(req.user.userId, password);
+
+  res.clearCookie("refreshToken", refreshTokenCookieOptions);
+
+  return res.status(OK).json({
+    success: true,
+    message: result.message,
+  });
+};
+
+export const reactivateAccountController = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  const result = await reactivateAccount(email, password);
+
+  return res.status(OK).json({
+    success: true,
+    message: result.message,
+  });
+};
+
+export const deleteAccountController = async (req: Request, res: Response) => {
+  requireAuth(req);
+
+  const { password } = req.body;
+  const result = await deleteAccount(req.user.userId, password);
+
+  res.clearCookie("refreshToken", refreshTokenCookieOptions);
+
+  return res.status(OK).json({
+    success: true,
+    message: result.message,
   });
 };

@@ -93,14 +93,22 @@ export const generateQRCode = async (otpauth: string) => {
 /**
  * Verifies a TOTP token against an encrypted secret.
  * Decrypts the secret first, then performs async TOTP verification.
+ * Returns false (instead of throwing) for non-6-digit inputs so
+ * callers can fall back to backup code verification.
  */
 export const verifyTOTP = async (
   token: string,
   encryptedSecret: string,
 ): Promise<boolean> => {
-  const secret = decryptSecret(encryptedSecret);
-  const result = await totp.verify(token, { secret });
-  return result.valid;
+  try {
+    const secret = decryptSecret(encryptedSecret);
+    const result = await totp.verify(token, { secret });
+    return result.valid;
+  } catch {
+    // otplib throws TokenLengthError for non-6-digit tokens (e.g. backup codes).
+    // Return false so the caller can try backup code verification instead.
+    return false;
+  }
 };
 
 // ── Backup codes ─────────────────────────────────────────────────────────

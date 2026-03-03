@@ -44,10 +44,10 @@ export class FacebookProvider implements OAuthProvider {
         throw new AppError(BAD_REQUEST, "Failed to obtain Facebook access token");
       }
 
-      // 2. Fetch user data (must explicitly ask for 'email' field)
+      // 2. Fetch user data (must explicitly ask for 'name' and 'email' fields)
       const { data: profile } = await axios.get(FacebookProvider.USER_URL, {
         params: {
-          fields: "id,email",
+          fields: "id,name,email",
           access_token: accessToken,
         },
       });
@@ -62,6 +62,7 @@ export class FacebookProvider implements OAuthProvider {
       return {
         providerUserId: profile.id,
         email: profile.email,
+        fullname: profile.name ?? "Facebook User",
         provider: "facebook",
       };
     } catch (error) {

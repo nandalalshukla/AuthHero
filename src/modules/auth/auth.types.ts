@@ -21,24 +21,24 @@ export interface AccessTokenPayload {
   sessionId: string;
 }
 
-export interface registerResponse {
+export interface RegisterResponse {
   user: PublicUser;
   verificationToken: string;
 }
 
 //What login response should contain
-export interface loginResponse {
+export interface LoginResponse {
   mfaRequired: false;
   accessToken: string;
   refreshToken: string;
 }
 
-export interface loginMFAResponse {
+export interface LoginMFAResponse {
   mfaRequired: true;
   tempToken: string;
 }
 
-export type refreshResponse = {
+export type RefreshResponse = {
   accessToken: string;
   refreshToken: string;
 };

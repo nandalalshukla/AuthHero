@@ -73,3 +73,18 @@ export const disableMFA = async (req: Request, res: Response) => {
 
   res.json({ success: true, message: "MFA disabled successfully" });
 };
+
+/**
+ * Regenerate backup codes — requires authentication + current TOTP code.
+ * Replaces all existing backup codes with new ones.
+ * Returns the new codes (shown once, then only stored as hashes).
+ */
+export const regenerateBackupCodes = async (req: Request, res: Response) => {
+  requireAuth(req);
+  const userId = req.user.userId;
+  const { code } = req.body;
+
+  const data = await service.regenerateBackupCodes(userId, code);
+
+  res.json({ success: true, data });
+};

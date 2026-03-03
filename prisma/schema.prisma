@@ -16,6 +16,9 @@ model User {
 
   mfaEnabled Boolean @default(false)
 
+  deactivatedAt DateTime? @db.Timestamp(6) // null = active; set = soft-deactivated
+  deletedAt     DateTime? @db.Timestamp(6) // null = alive; set = soft-deleted (queued for permanent removal)
+
   createdAt DateTime @default(now()) @db.Timestamp(6)
   updatedAt DateTime @updatedAt @db.Timestamp(6)
 

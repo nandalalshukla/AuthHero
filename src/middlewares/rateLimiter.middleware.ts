@@ -55,3 +55,10 @@ export const changePasswordRateLimiter = createRateLimiter({
   message: "Too many password change attempts. Please try again in 1 minute.",
   keyPrefix: "change_password_rl",
 });
+
+export const accountActionRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: "Too many account action attempts. Please try again later.",
+  keyPrefix: "account_action_rl",
+});

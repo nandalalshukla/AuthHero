@@ -26,6 +26,8 @@ export enum AppErrorCode {
   MFAInvalidCode = "MFA_INVALID_CODE",
   MFANotSetup = "MFA_NOT_SETUP",
   ValidationFailed = "VALIDATION_FAILED",
+  AccountDeactivated = "ACCOUNT_DEACTIVATED",
+  AccountDeleted = "ACCOUNT_DELETED",
 }
 
 export class AppError extends Error {

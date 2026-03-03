@@ -73,6 +73,8 @@ export class GitHubProvider implements OAuthProvider {
       return {
         providerUserId: profile.id.toString(),
         email: primaryEmail,
+        fullname: profile.name,
+        profilePictureUrl: profile.avatar_url,
         provider: "github",
       };
     } catch (error) {

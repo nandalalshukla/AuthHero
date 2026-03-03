@@ -1,4 +1,3 @@
-// src/utils/requireAuth.ts
 
 import type { Request } from "express";
 import { AppError } from "../lib/AppError";
