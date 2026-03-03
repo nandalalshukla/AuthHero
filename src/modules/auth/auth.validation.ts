@@ -61,7 +61,7 @@ export type DeactivateAccountInput = z.infer<typeof deactivateAccountSchema>;
 export const deleteAccountSchema = z.object({
   password: z.string().min(1, "Password is required to confirm deletion"),
   confirmation: z.literal("DELETE MY ACCOUNT", {
-    errorMap: () => ({ message: 'You must type "DELETE MY ACCOUNT" to confirm' }),
+    message: 'You must type "DELETE MY ACCOUNT" to confirm',
   }),
 });
 export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;

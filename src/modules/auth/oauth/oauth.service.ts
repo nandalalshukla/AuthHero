@@ -2,8 +2,8 @@ import { prisma } from "../../../config/prisma";
 import { GoogleProvider } from "./providers/google.provider";
 import { GitHubProvider } from "./providers/github.provider";
 import { FacebookProvider } from "./providers/facebook.provider";
-import { AppError } from "../../../lib/AppError";
-import { BAD_REQUEST } from "../../../config/http";
+import { AppError, AppErrorCode } from "../../../lib/AppError";
+import { BAD_REQUEST, FORBIDDEN } from "../../../config/http";
 import type { OAuthProvider } from "./oauth.types";
 
 /** Fields returned from OAuth user lookups (never includes passwordHash) */
@@ -13,6 +13,8 @@ const USER_SELECT = {
   email: true,
   emailVerified: true,
   mfaEnabled: true,
+  deactivatedAt: true,
+  deletedAt: true,
   createdAt: true,
 } as const;
 
@@ -46,7 +48,24 @@ export class OAuthService {
         include: { user: { select: USER_SELECT } },
       });
 
-      if (existingAccount) return existingAccount.user;
+      if (existingAccount) {
+        // Block deactivated/deleted accounts from OAuth login
+        if (existingAccount.user.deletedAt) {
+          throw new AppError(
+            FORBIDDEN,
+            "This account has been deleted.",
+            AppErrorCode.AccountDeleted,
+          );
+        }
+        if (existingAccount.user.deactivatedAt) {
+          throw new AppError(
+            FORBIDDEN,
+            "This account is deactivated. Please reactivate your account first.",
+            AppErrorCode.AccountDeactivated,
+          );
+        }
+        return existingAccount.user;
+      }
 
       // Check if the user exists by email (Account Linking)
       const existingUser = await tx.user.findUnique({
@@ -55,6 +74,21 @@ export class OAuthService {
       });
 
       if (existingUser) {
+        // Block deactivated/deleted accounts from OAuth login
+        if (existingUser.deletedAt) {
+          throw new AppError(
+            FORBIDDEN,
+            "This account has been deleted.",
+            AppErrorCode.AccountDeleted,
+          );
+        }
+        if (existingUser.deactivatedAt) {
+          throw new AppError(
+            FORBIDDEN,
+            "This account is deactivated. Please reactivate your account first.",
+            AppErrorCode.AccountDeactivated,
+          );
+        }
         // Link the existing user to the new social provider
         await tx.oAuthAccount.create({
           data: {

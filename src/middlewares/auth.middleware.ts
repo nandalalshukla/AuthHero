@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { prisma } from "../config/prisma";
 import { verifyAccessToken } from "../config/jwt";
-import { AppError } from "../lib/AppError";
-import { UNAUTHORIZED } from "../config/http";
+import { AppError, AppErrorCode } from "../lib/AppError";
+import { UNAUTHORIZED, FORBIDDEN } from "../config/http";
 
 export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
   try {
@@ -37,6 +37,32 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
 
     if (session.expiresAt < new Date()) {
       throw new AppError(UNAUTHORIZED, "Session expired");
+    }
+
+    // Check if the user's account is still active
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { deactivatedAt: true, deletedAt: true },
+    });
+
+    if (!user) {
+      throw new AppError(UNAUTHORIZED, "User not found");
+    }
+
+    if (user.deletedAt) {
+      throw new AppError(
+        FORBIDDEN,
+        "This account has been deleted.",
+        AppErrorCode.AccountDeleted,
+      );
+    }
+
+    if (user.deactivatedAt) {
+      throw new AppError(
+        FORBIDDEN,
+        "This account is deactivated.",
+        AppErrorCode.AccountDeactivated,
+      );
     }
 
     req.user = { userId, sessionId };
