@@ -126,9 +126,9 @@ describe("Security", () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       (verifyPassword as any).mockResolvedValue(false);
 
-      await expect(
-        loginUser("nonexistent@example.com", "password"),
-      ).rejects.toThrow("Invalid credentials");
+      await expect(loginUser("nonexistent@example.com", "password")).rejects.toThrow(
+        "Invalid credentials",
+      );
 
       // CRITICAL: verifyPassword must have been called even though
       // the user doesn't exist. This prevents timing-based enumeration.
@@ -177,7 +177,7 @@ describe("Security", () => {
   // may have already rotated it (used it to get a new one).
   //
   // Defense: When a revoked refresh token is used, the system detects
-  // this as token theft and revokes ALL sessions for that user. 
+  // this as token theft and revokes ALL sessions for that user.
   // This is called "automatic reuse detection."
   describe("refresh token reuse detection", () => {
     it("should revoke ALL sessions when a revoked token is reused", async () => {
@@ -219,9 +219,7 @@ describe("Security", () => {
         usedAt: null,
       });
 
-      await expect(verifyEmail("expired-token")).rejects.toThrow(
-        "Token has expired",
-      );
+      await expect(verifyEmail("expired-token")).rejects.toThrow("Token has expired");
     });
 
     it("should reject expired refresh token and revoke it", async () => {
@@ -253,9 +251,9 @@ describe("Security", () => {
         usedAt: null,
       });
 
-      await expect(
-        resetPassword("expired-token", "NewP@ss1"),
-      ).rejects.toThrow("Token has expired");
+      await expect(resetPassword("expired-token", "NewP@ss1")).rejects.toThrow(
+        "Token has expired",
+      );
     });
   });
 
@@ -287,9 +285,9 @@ describe("Security", () => {
         usedAt: new Date(), // already used!
       });
 
-      await expect(
-        resetPassword("used-token", "NewP@ss1"),
-      ).rejects.toThrow("Token has already been used");
+      await expect(resetPassword("used-token", "NewP@ss1")).rejects.toThrow(
+        "Token has already been used",
+      );
     });
   });
 
@@ -320,14 +318,16 @@ describe("Security", () => {
       expect(error!.errorCode).toBe(AppErrorCode.InvalidCredentials);
     });
 
-    it("should reject changePassword for OAuth-only accounts with helpful message", async () => {
+    it("should allow OAuth-only accounts to set a password for the first time", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         passwordHash: null, // OAuth-only
       });
+      mockPrisma.$transaction.mockResolvedValue(undefined);
 
-      await expect(
-        changePassword("oauth-user", "old", "New@Pass1"),
-      ).rejects.toThrow("social login");
+      // Should NOT throw — OAuth-only users can set a password
+      await expect(changePassword("oauth-user", undefined, "New@Pass1")).resolves.toEqual(
+        { message: "Password changed successfully" },
+      );
     });
   });
 
@@ -342,9 +342,7 @@ describe("Security", () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       // Should NOT throw — just return silently
-      await expect(
-        forgotPassword("noone@example.com"),
-      ).resolves.toBeUndefined();
+      await expect(forgotPassword("noone@example.com")).resolves.toBeUndefined();
 
       // Should NOT send any email or create a reset token
       expect(emailQueue.add).not.toHaveBeenCalled();

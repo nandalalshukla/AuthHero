@@ -46,10 +46,20 @@ export const registerUser = async (
 ): Promise<RegisterResponse> => {
   const existingUser = await prisma.user.findUnique({
     where: { email },
+    select: { id: true, deletedAt: true },
   });
 
   if (existingUser) {
-    throw new AppError(CONFLICT, "User already exists", AppErrorCode.EmailAlreadyExists);
+    if (!existingUser.deletedAt) {
+      throw new AppError(
+        CONFLICT,
+        "User already exists",
+        AppErrorCode.EmailAlreadyExists,
+      );
+    }
+    // Soft-deleted user with this email: hard-delete to free the email for re-registration.
+    // Cascade rules in schema.prisma clean up sessions, OAuth accounts, MFA, etc.
+    await prisma.user.delete({ where: { id: existingUser.id } });
   }
 
   const passwordHash = await hashPassword(password);
@@ -287,6 +297,7 @@ export const getMe = async (userId: string) => {
       emailVerified: true,
       mfaEnabled: true,
       createdAt: true,
+      passwordHash: true,
     },
   });
 
@@ -294,7 +305,8 @@ export const getMe = async (userId: string) => {
     throw new AppError(NOT_FOUND, "User not found");
   }
 
-  return user;
+  const { passwordHash, ...rest } = user;
+  return { ...rest, hasPassword: passwordHash !== null };
 };
 
 export const refreshSession = async (
@@ -459,7 +471,7 @@ export const resetPassword = async (token: string, newPassword: string) => {
 
 export const changePassword = async (
   userId: string,
-  currentPassword: string,
+  currentPassword: string | undefined,
   newPassword: string,
   currentSessionId?: string,
 ) => {
@@ -470,15 +482,25 @@ export const changePassword = async (
   if (!user) {
     throw new AppError(UNAUTHORIZED, "User not found");
   }
-  if (!user.passwordHash) {
-    throw new AppError(
-      BAD_REQUEST,
-      "This account uses social login and has no password. Use your OAuth provider to sign in.",
-    );
-  }
-  const isValid = await verifyPassword(currentPassword, user.passwordHash);
-  if (!isValid) {
-    throw new AppError(UNAUTHORIZED, "Current password is incorrect");
+  // Only verify the current password when the account already has one set.
+  // OAuth-only users (no passwordHash) are allowed to set a password for the
+  // first time without providing a current password.
+  if (user.passwordHash) {
+    if (!currentPassword) {
+      throw new AppError(BAD_REQUEST, "Current password is required");
+    }
+    const isValid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new AppError(UNAUTHORIZED, "Current password is incorrect");
+    }
+    // Prevent setting the same password again
+    const isSame = await verifyPassword(newPassword, user.passwordHash);
+    if (isSame) {
+      throw new AppError(
+        BAD_REQUEST,
+        "New password must be different from current password",
+      );
+    }
   }
   const newPasswordHash = await hashPassword(newPassword);
 
@@ -508,7 +530,7 @@ export const changePassword = async (
 // in with correct credentials at the dedicated reactivation endpoint.
 // All sessions are revoked immediately.
 
-export const deactivateAccount = async (userId: string, password: string) => {
+export const deactivateAccount = async (userId: string, password?: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { passwordHash: true, deactivatedAt: true },
@@ -522,18 +544,20 @@ export const deactivateAccount = async (userId: string, password: string) => {
     throw new AppError(BAD_REQUEST, "Account is already deactivated");
   }
 
-  // OAuth-only users don't have a password — they must set one first,
-  // or we could allow them without password. For safety, we require a password.
-  if (!user.passwordHash) {
-    throw new AppError(
-      BAD_REQUEST,
-      "This account uses social login and has no password. Set a password first before deactivating.",
-    );
-  }
-
-  const isValid = await verifyPassword(password, user.passwordHash);
-  if (!isValid) {
-    throw new AppError(UNAUTHORIZED, "Incorrect password", AppErrorCode.InvalidCredentials);
+  // Password accounts require confirmation; OAuth-only users are already
+  // authenticated via JWT so no extra credential check is needed.
+  if (user.passwordHash) {
+    if (!password) {
+      throw new AppError(BAD_REQUEST, "Password is required to confirm deactivation");
+    }
+    const isValid = await verifyPassword(password, user.passwordHash);
+    if (!isValid) {
+      throw new AppError(
+        UNAUTHORIZED,
+        "Incorrect password",
+        AppErrorCode.InvalidCredentials,
+      );
+    }
   }
 
   const now = new Date();
@@ -601,7 +625,7 @@ export const reactivateAccount = async (email: string, password: string) => {
 // Related data (sessions, MFA, OAuth accounts) are preserved for the
 // grace period. A scheduled job can permanently purge after 30 days.
 
-export const deleteAccount = async (userId: string, password: string) => {
+export const deleteAccount = async (userId: string, password?: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { passwordHash: true, deletedAt: true },
@@ -615,16 +639,20 @@ export const deleteAccount = async (userId: string, password: string) => {
     throw new AppError(BAD_REQUEST, "Account is already marked for deletion");
   }
 
-  if (!user.passwordHash) {
-    throw new AppError(
-      BAD_REQUEST,
-      "This account uses social login and has no password. Set a password first before deleting.",
-    );
-  }
-
-  const isValid = await verifyPassword(password, user.passwordHash);
-  if (!isValid) {
-    throw new AppError(UNAUTHORIZED, "Incorrect password", AppErrorCode.InvalidCredentials);
+  // Password accounts require confirmation; OAuth-only users are already
+  // authenticated via JWT so no extra credential check is needed.
+  if (user.passwordHash) {
+    if (!password) {
+      throw new AppError(BAD_REQUEST, "Password is required to confirm deletion");
+    }
+    const isValid = await verifyPassword(password, user.passwordHash);
+    if (!isValid) {
+      throw new AppError(
+        UNAUTHORIZED,
+        "Incorrect password",
+        AppErrorCode.InvalidCredentials,
+      );
+    }
   }
 
   const now = new Date();

@@ -48,18 +48,18 @@ export const resetPasswordSchema = z.object({
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
+  currentPassword: z.string().min(1, "Current password is required").optional(),
   newPassword: passwordSchema,
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 export const deactivateAccountSchema = z.object({
-  password: z.string().min(1, "Password is required to confirm deactivation"),
+  password: z.string().min(1, "Password is required to confirm deactivation").optional(),
 });
 export type DeactivateAccountInput = z.infer<typeof deactivateAccountSchema>;
 
 export const deleteAccountSchema = z.object({
-  password: z.string().min(1, "Password is required to confirm deletion"),
+  password: z.string().min(1, "Password is required to confirm deletion").optional(),
   confirmation: z.literal("DELETE MY ACCOUNT", {
     message: 'You must type "DELETE MY ACCOUNT" to confirm',
   }),

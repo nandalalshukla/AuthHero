@@ -35,7 +35,9 @@ import {
   resetPasswordRateLimiter,
   refreshRateLimiter,
   changePasswordRateLimiter,
-  accountActionRateLimiter,
+  deactivateRateLimiter,
+  reactivateRateLimiter,
+  deleteAccountRateLimiter,
 } from "../../middlewares/rateLimiter.middleware";
 import { authenticate } from "../../middlewares/auth.middleware";
 
@@ -93,14 +95,14 @@ router.post(
 router.post(
   "/deactivate",
   authenticate,
-  accountActionRateLimiter,
+  deactivateRateLimiter,
   validate(deactivateAccountSchema),
   asyncHandler(deactivateAccountController),
 );
 
 router.post(
   "/reactivate",
-  accountActionRateLimiter,
+  reactivateRateLimiter,
   validate(reactivateAccountSchema),
   asyncHandler(reactivateAccountController),
 );
@@ -108,7 +110,7 @@ router.post(
 router.post(
   "/delete-account",
   authenticate,
-  accountActionRateLimiter,
+  deleteAccountRateLimiter,
   validate(deleteAccountSchema),
   asyncHandler(deleteAccountController),
 );

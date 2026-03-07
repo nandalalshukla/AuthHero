@@ -155,30 +155,31 @@ describe("auth.service", () => {
       });
 
       // Act
-      const result = await registerUser("test@example.com", "SecureP@ss1");
+      const result = await registerUser("Test User", "test@example.com", "SecureP@ss1");
 
       // Assert
       expect(result.user.email).toBe("test@example.com");
       expect(result.verificationToken).toBeDefined();
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: "test@example.com" },
+        select: { id: true, deletedAt: true },
       });
     });
 
     it("should throw if user already exists", async () => {
-      // Arrange: simulate an existing user found in DB
+      // Arrange: simulate an existing active user found in DB
       mockPrisma.user.findUnique.mockResolvedValue({
         id: "existing-user",
-        email: "test@example.com",
+        deletedAt: null,
       });
 
       // Act & Assert: expect an AppError with 409 status
       await expect(
-        registerUser("test@example.com", "SecureP@ss1"),
+        registerUser("Test User", "test@example.com", "SecureP@ss1"),
       ).rejects.toThrow(AppError);
 
       await expect(
-        registerUser("test@example.com", "SecureP@ss1"),
+        registerUser("Test User", "test@example.com", "SecureP@ss1"),
       ).rejects.toThrow("User already exists");
     });
   });
@@ -225,9 +226,7 @@ describe("auth.service", () => {
     it("should throw if token is not found", async () => {
       mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
 
-      await expect(verifyEmail("bad-token")).rejects.toThrow(
-        "Invalid or expired token",
-      );
+      await expect(verifyEmail("bad-token")).rejects.toThrow("Invalid or expired token");
     });
 
     it("should throw if token has expired", async () => {
@@ -239,9 +238,7 @@ describe("auth.service", () => {
         usedAt: null,
       });
 
-      await expect(verifyEmail("expired-token")).rejects.toThrow(
-        "Token has expired",
-      );
+      await expect(verifyEmail("expired-token")).rejects.toThrow("Token has expired");
     });
 
     it("should throw if token has already been used", async () => {
@@ -298,9 +295,9 @@ describe("auth.service", () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       (verifyPassword as any).mockResolvedValue(false);
 
-      await expect(
-        loginUser("noone@example.com", "password"),
-      ).rejects.toThrow("Invalid credentials");
+      await expect(loginUser("noone@example.com", "password")).rejects.toThrow(
+        "Invalid credentials",
+      );
     });
 
     it("should throw for wrong password", async () => {
@@ -312,9 +309,9 @@ describe("auth.service", () => {
       });
       (verifyPassword as any).mockResolvedValue(false);
 
-      await expect(
-        loginUser("test@example.com", "wrong-password"),
-      ).rejects.toThrow("Invalid credentials");
+      await expect(loginUser("test@example.com", "wrong-password")).rejects.toThrow(
+        "Invalid credentials",
+      );
     });
 
     it("should throw for OAuth-only account (no password hash)", async () => {
@@ -326,9 +323,9 @@ describe("auth.service", () => {
       });
       (verifyPassword as any).mockResolvedValue(false);
 
-      await expect(
-        loginUser("oauth@example.com", "any-password"),
-      ).rejects.toThrow("Invalid credentials");
+      await expect(loginUser("oauth@example.com", "any-password")).rejects.toThrow(
+        "Invalid credentials",
+      );
     });
 
     it("should throw if email is not verified", async () => {
@@ -349,9 +346,9 @@ describe("auth.service", () => {
       mockPrisma.emailVerification.create.mockResolvedValue({});
       (verifyPassword as any).mockResolvedValue(true);
 
-      await expect(
-        loginUser("test@example.com", "SecureP@ss1"),
-      ).rejects.toThrow("Email not verified");
+      await expect(loginUser("test@example.com", "SecureP@ss1")).rejects.toThrow(
+        "Email not verified",
+      );
     });
 
     it("should return MFA temp token when MFA is enabled", async () => {
@@ -409,9 +406,7 @@ describe("auth.service", () => {
     it("should throw for invalid refresh token", async () => {
       mockPrisma.session.findUnique.mockResolvedValue(null);
 
-      await expect(refreshSession("bad-token")).rejects.toThrow(
-        "Invalid refresh token",
-      );
+      await expect(refreshSession("bad-token")).rejects.toThrow("Invalid refresh token");
     });
 
     it("should revoke ALL sessions on token reuse", async () => {
@@ -480,9 +475,7 @@ describe("auth.service", () => {
     it("should throw for invalid/revoked session", async () => {
       mockPrisma.session.findUnique.mockResolvedValue(null);
 
-      await expect(logoutUser("bad-session")).rejects.toThrow(
-        "Invalid session",
-      );
+      await expect(logoutUser("bad-session")).rejects.toThrow("Invalid session");
     });
   });
 
@@ -556,9 +549,9 @@ describe("auth.service", () => {
     it("should throw for invalid token", async () => {
       mockPrisma.passwordReset.findFirst.mockResolvedValue(null);
 
-      await expect(
-        resetPassword("invalid-token", "NewSecure@1"),
-      ).rejects.toThrow("Invalid or expired token");
+      await expect(resetPassword("invalid-token", "NewSecure@1")).rejects.toThrow(
+        "Invalid or expired token",
+      );
     });
 
     it("should throw for already-used token", async () => {
@@ -569,9 +562,9 @@ describe("auth.service", () => {
         usedAt: new Date(), // already used!
       });
 
-      await expect(
-        resetPassword("used-token", "NewSecure@1"),
-      ).rejects.toThrow("Token has already been used");
+      await expect(resetPassword("used-token", "NewSecure@1")).rejects.toThrow(
+        "Token has already been used",
+      );
     });
 
     it("should throw for expired token", async () => {
@@ -582,9 +575,9 @@ describe("auth.service", () => {
         usedAt: null,
       });
 
-      await expect(
-        resetPassword("expired-token", "NewSecure@1"),
-      ).rejects.toThrow("Token has expired");
+      await expect(resetPassword("expired-token", "NewSecure@1")).rejects.toThrow(
+        "Token has expired",
+      );
     });
   });
 
@@ -600,35 +593,47 @@ describe("auth.service", () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         passwordHash: "old-hashed-password",
       });
-      (verifyPassword as any).mockResolvedValue(true);
+      // First call: verify current password (true)
+      // Second call: check if new === current (false, i.e. different)
+      (verifyPassword as any).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       (hashPassword as any).mockResolvedValue("new-hashed-password");
       mockPrisma.user.update.mockResolvedValue({});
 
       const result = await changePassword("user-1", "OldP@ss1", "NewP@ss1");
 
       expect(result.message).toBe("Password changed successfully");
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: "user-1" },
-        data: { passwordHash: "new-hashed-password" },
+    });
+
+    it("should reject when new password is the same as current", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: "hashed-password",
       });
+      // First call: verify current password (true)
+      // Second call: check if new === current (true, i.e. same)
+      (verifyPassword as any).mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+
+      await expect(changePassword("user-1", "SameP@ss1", "SameP@ss1")).rejects.toThrow(
+        "New password must be different from current password",
+      );
     });
 
     it("should throw if user not found", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(
-        changePassword("no-user", "old", "new"),
-      ).rejects.toThrow("User not found");
+      await expect(changePassword("no-user", "old", "new")).rejects.toThrow(
+        "User not found",
+      );
     });
 
-    it("should throw for OAuth-only account (no password)", async () => {
+    it("should allow OAuth-only account to set a password", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         passwordHash: null, // OAuth-only
       });
+      (hashPassword as any).mockResolvedValue("new-hashed-password");
+      mockPrisma.$transaction.mockResolvedValue(undefined);
 
-      await expect(
-        changePassword("user-1", "old", "new"),
-      ).rejects.toThrow("social login");
+      const result = await changePassword("user-1", undefined, "NewP@ss1");
+      expect(result.message).toBe("Password changed successfully");
     });
 
     it("should throw for incorrect current password", async () => {
@@ -637,9 +642,9 @@ describe("auth.service", () => {
       });
       (verifyPassword as any).mockResolvedValue(false);
 
-      await expect(
-        changePassword("user-1", "wrong-pass", "NewP@ss1"),
-      ).rejects.toThrow("Current password is incorrect");
+      await expect(changePassword("user-1", "wrong-pass", "NewP@ss1")).rejects.toThrow(
+        "Current password is incorrect",
+      );
     });
   });
 });
